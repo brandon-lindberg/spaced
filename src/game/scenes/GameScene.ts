@@ -111,19 +111,25 @@ export default class GameScene extends Phaser.Scene {
 
     this.scale.on('resize', this.handleResize, this)
 
+    // Make sure input is enabled every run
+    this.input.enabled = true
+    if (this.input.keyboard) this.input.keyboard.enabled = true
+
     this.createEnemyTexture(this.enemyTextureKey)
     this.enemies = this.physics.add.group()
     this.levelStartMs = this.time.now
+
+    // Reset registry run-specific state
+    this.registry.set('xp', 0)
+    this.registry.set('level', 1)
+    this.registry.set('gold', 0)
+    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
 
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
     this.createGoldTexture(this.goldTextureKey)
     this.xpGroup = this.physics.add.group()
     this.goldGroup = this.physics.add.group()
-    this.registry.set('xp', this.registry.get('xp') ?? 0)
-    this.registry.set('level', this.registry.get('level') ?? 1)
-    this.registry.set('gold', this.registry.get('gold') ?? 0)
-    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
 
     this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
@@ -141,7 +147,11 @@ export default class GameScene extends Phaser.Scene {
     })
 
     // Player <-> enemy collision damage
-    this.physics.add.overlap(this.player, this.enemies, (_p, e) => this.onPlayerTouched(e as Phaser.Physics.Arcade.Sprite))
+    this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
+      const enemy = e as Phaser.Physics.Arcade.Sprite
+      if (!enemy.active) return
+      this.onPlayerTouched(enemy)
+    })
 
     // Inventory
     const inv = createInventory()
@@ -530,8 +540,7 @@ export default class GameScene extends Phaser.Scene {
 
     const enemy = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
       (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
-    enemy.setActive(true)
-    enemy.setVisible(true)
+    enemy.enableBody(true, x, y, true, true)
     // Enemy hitbox slightly smaller
     enemy.setCircle(3, 1, 1)
     enemy.setCollideWorldBounds(false)
@@ -559,8 +568,7 @@ export default class GameScene extends Phaser.Scene {
 
     const enemy = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
       (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
-    enemy.setActive(true)
-    enemy.setVisible(true)
+    enemy.enableBody(true, x, y, true, true)
     enemy.setCircle(3, 1, 1)
     enemy.setCollideWorldBounds(false)
 
@@ -592,6 +600,8 @@ export default class GameScene extends Phaser.Scene {
     const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
     for (const enemy of children) {
       if (!enemy || !enemy.active || !this.player) continue
+      // ensure body is enabled and visible if active
+      if (!enemy.body) enemy.enableBody(true, enemy.x, enemy.y, true, true)
       // skip chase while stunned
       const stunUntil = ((enemy as any).stunUntil as number) || 0
       if (this.time.now < stunUntil) continue
@@ -600,15 +610,11 @@ export default class GameScene extends Phaser.Scene {
       const dy = this.player.y - enemy.y
       const len = Math.hypot(dx, dy) || 1
       enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
-      // Ensure enemy body is active for collisions
-      enemy.body?.enable && (enemy.body as Phaser.Physics.Arcade.Body).setEnable(true)
 
       const dcx = enemy.x - cx
       const dcy = enemy.y - cy
       const distCam = Math.hypot(dcx, dcy)
-      if (distCam > despawnRadius * 1.5) {
-        enemy.destroy()
-      }
+      if (distCam > despawnRadius * 1.5) enemy.disableBody(true, true)
     }
   }
 

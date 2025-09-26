@@ -18,13 +18,21 @@ export default class GameOverScene extends Phaser.Scene {
   }
 
   private retry() {
-    // Stop all running scenes cleanly
+    // Stop overlays
     this.scene.stop('HUD')
-    this.scene.stop('Game')
     this.scene.stop('LevelUp')
-    this.scene.stop() // stop GameOver itself
-    // Restart Menu fresh
-    this.scene.start('Menu')
+    // Restart Game fresh
+    const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
+    if (gameScene) {
+      gameScene.input?.removeAllListeners()
+      gameScene.time?.removeAllEvents()
+      gameScene.scene.restart()
+    } else {
+      this.scene.start('Game')
+    }
+    // Close GameOver and relaunch HUD
+    this.scene.stop()
+    this.scene.launch('HUD')
   }
 }
 

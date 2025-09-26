@@ -21,18 +21,18 @@ export default class MenuScene extends Phaser.Scene {
     })
     press.setOrigin(0.5)
 
-    // Remove any stale listeners before re-registering
-    this.input.keyboard?.removeAllListeners()
-    this.input.removeAllListeners()
+    // Ensure input is enabled after returning from other scenes
+    this.input.enabled = true
+    if (this.input.keyboard) this.input.keyboard.enabled = true
 
-    this.input.keyboard?.once('keydown', () => {
+    const start = () => {
       this.scene.start('Game')
       this.scene.launch('HUD')
-    })
-    this.input.once('pointerdown', () => {
-      this.scene.start('Game')
-      this.scene.launch('HUD')
-    })
+    }
+    this.input.keyboard?.once('keydown', start)
+    this.input.keyboard?.once('keydown-SPACE', start)
+    this.input.keyboard?.once('keydown-ENTER', start)
+    this.input.once('pointerdown', start)
   }
 }
 
