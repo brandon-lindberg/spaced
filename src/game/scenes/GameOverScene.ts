@@ -13,8 +13,14 @@ export default class GameOverScene extends Phaser.Scene {
       color: '#ff4444',
     })
     text.setOrigin(0.5)
-    this.input.keyboard?.once('keydown-R', () => this.retry())
-    this.input.once('pointerdown', () => this.retry())
+    this.input.enabled = true
+    if (this.input.keyboard) this.input.keyboard.enabled = true
+    this.input.keyboard?.removeAllListeners()
+    this.input.removeAllListeners()
+    const start = () => this.retry()
+    this.input.keyboard?.once('keydown', start)
+    this.input.keyboard?.once('keydown-R', start)
+    this.input.once('pointerdown', start)
   }
 
   private retry() {

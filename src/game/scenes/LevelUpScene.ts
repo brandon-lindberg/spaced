@@ -29,8 +29,14 @@ export default class LevelUpScene extends Phaser.Scene {
     const visibleChoices = this.choices.length
       ? this.choices
       : [
-          { key: 'speed', label: 'Thrusters +10% speed', color: '#66ccff' },
-          { key: 'magnet', label: 'Magnet +24px', color: '#ffcc33' },
+          { key: 'acc-thrusters', label: 'Accessory: Thrusters (+speed)', color: '#66ccff' },
+          { key: 'acc-magnet-core', label: 'Accessory: Magnet Core (+pickup)', color: '#33ff99' },
+          { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader (+fire rate)', color: '#ffaa66' },
+          { key: 'acc-power-cell', label: 'Accessory: Power Cell (+damage)', color: '#ff8866' },
+          { key: 'acc-splitter', label: 'Accessory: Splitter (+multishot)', color: '#ccccff' },
+          { key: 'w-laser', label: 'Weapon: Laser', color: '#ff66ff' },
+          { key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' },
+          { key: 'w-orb', label: 'Weapon: Orb', color: '#66ccff' },
           { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
         ]
 

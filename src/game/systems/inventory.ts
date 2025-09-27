@@ -1,7 +1,16 @@
 export const MAX_WEAPONS = 5
 export const MAX_ACCESSORIES = 5
 
-export type WeaponKey = 'blaster'
+export type WeaponKey =
+  | 'blaster'
+  | 'scatter-blaster'
+  | 'pulse-blaster'
+  | 'laser'
+  | 'beam-laser'
+  | 'missiles'
+  | 'cluster-missiles'
+  | 'orb'
+  | 'nova-orb'
 
 export interface WeaponInstance {
   key: WeaponKey
@@ -30,6 +39,14 @@ export function addWeapon(inv: InventoryState, key: WeaponKey): boolean {
   }
   if (inv.weapons.length >= MAX_WEAPONS) return false
   inv.weapons.push({ key, level: 1 })
+  return true
+}
+
+export function evolveWeapon(inv: InventoryState, fromKey: WeaponKey, toKey: WeaponKey): boolean {
+  const idx = inv.weapons.findIndex((w) => w.key === fromKey)
+  if (idx === -1) return false
+  inv.weapons.splice(idx, 1)
+  inv.weapons.push({ key: toKey, level: 1 })
   return true
 }
 
