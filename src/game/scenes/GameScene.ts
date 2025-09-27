@@ -531,7 +531,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private ensureBulletAssets() {
-    if (!this.bullets) {
+    if (!this.bullets || !(this as any).bullets?.children?.entries) {
       this.bullets = this.physics.add.group({ maxSize: 300 })
       this.physics.add.overlap(
         this.bullets,
@@ -544,11 +544,11 @@ export default class GameScene extends Phaser.Scene {
       )
       // Debug: draw bullet collider rects briefly after spawn
     }
-    if (!this.missileGroup) {
+    if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) {
       this.missileGroup = this.physics.add.group({ maxSize: 120 })
       this.physics.add.overlap(this.missileGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
     }
-    if (!this.orbGroup) {
+    if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) {
       this.orbGroup = this.physics.add.group({ maxSize: 90 })
       this.physics.add.overlap(this.orbGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
     }
@@ -648,9 +648,9 @@ export default class GameScene extends Phaser.Scene {
     // Despawn far bullets
     const cam = this.cameras.main
     const bounds = new Phaser.Geom.Rectangle(cam.scrollX - 40, cam.scrollY - 40, cam.width + 80, cam.height + 80)
-    const arrB = this.bullets.getChildren() as Phaser.Physics.Arcade.Sprite[]
-    const arrM = this.missileGroup ? (this.missileGroup.getChildren() as Phaser.Physics.Arcade.Sprite[]) : []
-    const arrO = this.orbGroup ? (this.orbGroup.getChildren() as Phaser.Physics.Arcade.Sprite[]) : []
+    const arrB = this.safeGroupChildren(this.bullets) as Phaser.Physics.Arcade.Sprite[]
+    const arrM = this.safeGroupChildren(this.missileGroup) as Phaser.Physics.Arcade.Sprite[]
+    const arrO = this.safeGroupChildren(this.orbGroup) as Phaser.Physics.Arcade.Sprite[]
     for (const b of [...arrB, ...arrM, ...arrO]) {
       if (!b.active) continue
       // simple homing for missiles
@@ -702,6 +702,8 @@ export default class GameScene extends Phaser.Scene {
 
   private spawnBullet(x: number, y: number, angleDeg: number) {
     const tex = 'blaster-tex'
+    this.ensureBulletAssets()
+    if (!this.bullets || !(this as any).bullets?.children?.entries) return
     const b = this.bullets.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
     if (!b) return
     b.enableBody(true, x, y, true, true)
@@ -723,6 +725,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnMissile(x: number, y: number, angleDeg: number) {
+    this.ensureBulletAssets()
+    if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) return
     const m = this.missileGroup.get(x, y, 'missile-tex') as Phaser.Physics.Arcade.Sprite
     if (!m) return
     m.enableBody(true, x, y, true, true)
@@ -738,6 +742,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnOrb(x: number, y: number, angleDeg: number) {
+    this.ensureBulletAssets()
+    if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) return
     const o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
     if (!o) return
     o.enableBody(true, x, y, true, true)
@@ -806,6 +812,13 @@ export default class GameScene extends Phaser.Scene {
     g.lineStyle(2, 0xffaa00, 0.85)
     g.strokeCircle(x, y, radius)
     this.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
+  }
+
+  // Defensive helper for groups that may be undefined early in scene lifecycle
+  private safeGroupChildren(group?: Phaser.GameObjects.Group | Phaser.Physics.Arcade.Group) {
+    const anyGroup: any = group as any
+    if (!anyGroup || !anyGroup.children || !anyGroup.children.entries) return []
+    return anyGroup.children.entries as Phaser.GameObjects.GameObject[]
   }
 
   private onBulletHit(bullet: Phaser.GameObjects.GameObject, enemyObj: Phaser.GameObjects.GameObject) {

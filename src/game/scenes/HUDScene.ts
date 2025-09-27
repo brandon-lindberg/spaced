@@ -64,6 +64,12 @@ export default class HUDScene extends Phaser.Scene {
     ensureBlockIcon('icon-acc', 0x226644)
     const drawIcons = () => {
       iconLayer.removeAll(true)
+      // Defensive: ensure textures exist before use
+      ensureBlockIcon('icon-weapon', 0x4444aa)
+      ensureBlockIcon('icon-weapon-laser', 0xaa44aa)
+      ensureBlockIcon('icon-weapon-missiles', 0xffaa33)
+      ensureBlockIcon('icon-weapon-orb', 0x66ccff)
+      ensureBlockIcon('icon-acc', 0x226644)
       const weaponsStr = (this.registry.get('inv-weapons') as string) || ''
       const accStr = (this.registry.get('inv-accessories') as string) || ''
       const items: string[] = []
@@ -77,8 +83,10 @@ export default class HUDScene extends Phaser.Scene {
         if (/Laser/i.test(name)) key = 'icon-weapon-laser'
         if (/Missiles/i.test(name)) key = 'icon-weapon-missiles'
         if (/Orb/i.test(name)) key = 'icon-weapon-orb'
-        const img = this.add.image(x + 6, y + 6, key).setOrigin(0.5).setScrollFactor(0)
-        iconLayer.add(img)
+        if (this.textures.exists(key)) {
+          const img = this.add.image(x + 6, y + 6, key).setOrigin(0.5).setScrollFactor(0)
+          iconLayer.add(img)
+        }
         // pips under icon
         for (let i = 0; i < Math.min(6, lvl); i++) {
           const pip = this.add.rectangle(x + 2 + i * 3, y + 12, 2, 2, 0x00ff88).setScrollFactor(0)
@@ -93,8 +101,10 @@ export default class HUDScene extends Phaser.Scene {
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
           const lvl = match ? parseInt(match[2], 10) : 1
-          const img = this.add.image(x + 6, y + 6, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
-          iconLayer.add(img)
+          if (this.textures.exists('icon-acc')) {
+            const img = this.add.image(x + 6, y + 6, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
+            iconLayer.add(img)
+          }
           for (let i = 0; i < Math.min(6, lvl); i++) {
             const pip = this.add.rectangle(x + 2 + i * 3, y + 12, 2, 2, 0x88ccff).setScrollFactor(0)
             iconLayer.add(pip)
@@ -136,7 +146,7 @@ export default class HUDScene extends Phaser.Scene {
       this.bossLabel?.setText('BOSS')
       this.bossLabel?.setVisible(true)
     }
-    this.registry.events.on('changedata', (_parent: unknown, key: string, value: unknown) => {
+    const onData = (_parent: unknown, key: string, value: unknown) => {
       if (key === 'toast') {
         const msg = (value as string) || ''
         if (!msg) return
@@ -181,7 +191,10 @@ export default class HUDScene extends Phaser.Scene {
       if (key === 'inv-weapons' || key === 'inv-accessories') {
         refreshIcons()
       }
-    })
+    }
+    this.registry.events.on('changedata', onData)
+    this.events.once('shutdown', () => this.registry.events.off('changedata', onData))
+    this.events.once('destroy', () => this.registry.events.off('changedata', onData))
     refreshIcons()
     const fpsText = this.add.text(2, this.scale.height - 10, 'FPS', { fontFamily: 'monospace', fontSize: '8px', color: '#00ff88' }).setScrollFactor(0)
     fpsText.setVisible(!!getOptions().showFPS)

@@ -6,7 +6,42 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load placeholder assets here later
+    // Generate placeholder textures for all icons and common sprites
+    const makeRect = (key: string, w: number, h: number, color: number) => {
+      if (this.textures.exists(key)) return
+      const g = this.add.graphics(); g.fillStyle(color, 1); g.fillRect(0,0,w,h); g.generateTexture(key,w,h); g.destroy()
+    }
+    const makeCircle = (key: string, r: number, color: number) => {
+      if (this.textures.exists(key)) return
+      const g = this.add.graphics(); g.fillStyle(color, 1); g.fillCircle(r, r, r); g.generateTexture(key, r*2, r*2); g.destroy()
+    }
+    const makeIcon = (key: string, draw: (g: Phaser.GameObjects.Graphics)=>void, w=10, h=10) => {
+      if (this.textures.exists(key)) return
+      const g = this.add.graphics(); draw(g); g.generateTexture(key,w,h); g.destroy()
+    }
+    // HUD icons
+    makeIcon('icon-heart', (g)=>{ g.fillStyle(0xff5566,1); g.fillCircle(3,4,3); g.fillCircle(7,4,3); g.fillTriangle(1,5,9,5,5,10)}, 10,10)
+    makeIcon('icon-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(5,5,4)}, 10,10)
+    makeIcon('icon-xp', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(5,0,10,5,0,5); g.fillTriangle(0,5,10,5,5,10)}, 10,10)
+    makeIcon('icon-timer', (g)=>{ g.lineStyle(2,0xffffff,1); g.strokeCircle(5,5,4); g.lineBetween(5,5,5,2); g.lineBetween(5,5,8,5)}, 10,10)
+    makeRect('icon-weapon',10,10,0x4444aa)
+    makeRect('icon-weapon-laser',10,10,0xaa44aa)
+    makeRect('icon-weapon-missiles',10,10,0xffaa33)
+    makeRect('icon-weapon-orb',10,10,0x66ccff)
+    makeRect('icon-acc',10,10,0x226644)
+    // Game sprites
+    makeRect('blaster-tex',3,3,0xffffff)
+    makeRect('laser-shot-tex',2,2,0xff66ff)
+    makeRect('missile-tex',3,5,0xffaa33)
+    makeCircle('orb-tex',4,0x66ccff)
+    makeRect('beam-tex',8,2,0xff66ff)
+    makeIcon('explosion-tex', (g)=>{ g.fillStyle(0xffaa55,1); g.fillCircle(16,16,16)}, 32,32)
+    makeRect('enemy-square',8,8,0xff4444)
+    makeRect('player-square',8,8,0xffffff)
+    makeIcon('xp-gem', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(3,0,6,3,0,3); g.fillTriangle(0,3,6,3,3,6)}, 6,6)
+    makeIcon('gold-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(3,3,3)}, 6,6)
+    makeRect('health-pack',7,7,0x33ff66)
+    makeRect('powerup-chip',8,8,0x99ffcc)
   }
 
   create() {
