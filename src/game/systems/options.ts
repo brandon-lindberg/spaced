@@ -3,11 +3,15 @@ const OPTIONS_KEY = 'spaced.options'
 export type Options = {
   screenShake: boolean
   showFPS: boolean
+  musicVolume: number
+  sfxVolume: number
 }
 
 const defaultOptions: Options = {
   screenShake: true,
   showFPS: false,
+  musicVolume: 0.5,
+  sfxVolume: 0.7,
 }
 
 let cached: Options = { ...defaultOptions }

@@ -42,9 +42,7 @@ export default class GameScene extends Phaser.Scene {
   private goldTextureKey = 'gold-coin'
   private healthTextureKey = 'health-pack'
   private powerupTextureKey = 'powerup-chip'
-  private xpSpawnAcc = 0
-  private goldSpawnAcc = 0
-  private healthSpawnAcc = 0
+  // removed passive pickup spawners
 
   private level = 1
   private xpToNext = 5
@@ -192,6 +190,7 @@ export default class GameScene extends Phaser.Scene {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
       sprite.destroy()
       this.applyPowerupReward()
+      this.registry.set('toast', 'Power-up applied')
     })
 
     // Player <-> enemy collision damage
@@ -288,26 +287,19 @@ export default class GameScene extends Phaser.Scene {
 
     this.updateEnemies(camCenter.x, camCenter.y)
 
-    // Pickup spawns (placeholder: also spawned from ring for testing)
-    const xpPerSec = 0.25
-    const goldPerSec = 0.15
-    const healthPerSec = 0.05 // rare health packs
-    this.xpSpawnAcc += xpPerSec * dt
-    this.goldSpawnAcc += goldPerSec * dt
-    this.healthSpawnAcc += healthPerSec * dt
-    while (this.xpSpawnAcc >= 1) {
-      this.xpSpawnAcc -= 1
-      this.spawnPickupInRing(camCenter.x, camCenter.y, 'xp')
+    // Ambient health spawn (rare)
+    if (!this.bossActive) {
+      const healthPerSec = 0.02
+      if (Math.random() < healthPerSec * dt) {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
+        const radius = Math.hypot(this.scale.width, this.scale.height) * 0.55
+        const x = camCenter.x + Math.cos(angle) * radius
+        const y = camCenter.y + Math.sin(angle) * radius
+        const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
+        if (p) { p.setActive(true); p.setVisible(true) }
+      }
     }
-    while (this.goldSpawnAcc >= 1) {
-      this.goldSpawnAcc -= 1
-      this.spawnPickupInRing(camCenter.x, camCenter.y, 'gold')
-    }
-    while (this.healthSpawnAcc >= 1) {
-      this.healthSpawnAcc -= 1
-      this.spawnPickupInRing(camCenter.x, camCenter.y, 'health')
-    }
-
+    // Update magnetization/despawn for pickups
     this.updatePickups(camCenter.x, camCenter.y)
 
     // Level timer and victory
@@ -829,9 +821,26 @@ export default class GameScene extends Phaser.Scene {
       this.showExplosion(e.x, e.y, 16)
     }
     if (hp <= 0) {
-      // Drop a bit of XP/gold occasionally
-      if (Math.random() < 0.65) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
-      if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+      // Drops on enemy death (from kills only)
+      const isElite = !!((e as any).elite || (e as any).isElite)
+      if (isElite) {
+        // Elite weighted drop: 15% power-up, 50% XP (with 10–40% bonus), else gold 35%
+        const r = Math.random()
+        if (r < 0.15) {
+          const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
+          if (p) { p.setActive(true); p.setVisible(true) }
+        } else if (r < 0.65) {
+          const bonus = Phaser.Math.FloatBetween(0.1, 0.4)
+          const count = 1 + (Math.random() < bonus ? 1 : 0)
+          for (let i = 0; i < count; i++) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
+        } else {
+          this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+        }
+      } else {
+        // Non-elite: standard XP/gold small chances
+        if (Math.random() < 0.65) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
+        if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+      }
       const isBoss = !!(e as any).isBoss
       e.disableBody(true, true)
     if (isBoss) {
@@ -854,10 +863,6 @@ export default class GameScene extends Phaser.Scene {
             this.scene.start('Victory')
           }
         }
-      } else if ((e as any).elite || (e as any).isElite) {
-        // Elite killed: drop a power-up upgrade for an owned weapon/accessory; if maxed, 50 gold or full heal
-        const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
-        if (p) { p.setActive(true); p.setVisible(true) }
       }
     } else {
       if ((e as any).isBoss) {
@@ -1107,11 +1112,23 @@ export default class GameScene extends Phaser.Scene {
     }
     ;(enemy as any).stunUntil = 0
 
-    // Chance to spawn elite variant: boosted stats and distinct color
-    const eliteChance = Math.min(0.05 + elapsedSec * 0.0005, 0.15)
-    if (Math.random() < eliteChance) {
+    // Chance to spawn elite variant: boosted stats and distinct color.
+    // Scale over level time and cap global ratio.
+    const remain = runState.getRemainingSec(this.time.now)
+    const total = (runState.state?.levelDurationSec ?? 900)
+    const progress = 1 - Math.max(0, Math.min(1, remain / Math.max(1, total)))
+    if (!('eliteStats' in (this as any))) {
+      ;(this as any).eliteStats = { total: 0, elite: 0 }
+    }
+    ;(this as any).eliteStats.total++
+    const stats = (this as any).eliteStats
+    const curRatio = stats.elite / Math.max(1, stats.total)
+    const baseChance = 0.01 + progress * 0.03 + (remain <= 120 ? 0.06 : 0)
+    const targetMax = Math.min(0.35, 0.04 + progress * 0.26)
+    if (Math.random() < baseChance && curRatio < targetMax) {
+      stats.elite++
       ;(enemy as any).elite = true
-      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 2)
+      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 2.8)
       ;(enemy as any).chase = Math.max(16, Math.round(((enemy as any).chase || 40) * 0.85))
       ;(enemy as any).touchDamage = ((enemy as any).touchDamage || 1) + 1
       enemy.setTint(0xff00ff)
@@ -1458,33 +1475,6 @@ export default class GameScene extends Phaser.Scene {
     gfx.fillRect(1, size/2 - 1, size - 2, 2)
     gfx.generateTexture(key, size, size)
     gfx.destroy()
-  }
-
-  private spawnPickupInRing(cx: number, cy: number, kind: 'xp' | 'gold' | 'health') {
-    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 60
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(inner, outer)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-    if (kind === 'xp') {
-      const p = this.xpGroup.create(x, y, this.xpTextureKey) as Phaser.Physics.Arcade.Sprite
-      p.setActive(true)
-      p.setVisible(true)
-    } else if (kind === 'gold') {
-      const p = this.goldGroup.create(x, y, this.goldTextureKey) as Phaser.Physics.Arcade.Sprite
-      p.setActive(true)
-      p.setVisible(true)
-    } else if (kind === 'health') {
-      const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
-      p.setActive(true)
-      p.setVisible(true)
-    } else {
-      const p = this.powerupGroup.create(x, y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
-      p.setActive(true)
-      p.setVisible(true)
-    }
   }
 
   private updatePickups(cx: number, cy: number) {
