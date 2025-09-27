@@ -17,6 +17,10 @@ export default class GameScene extends Phaser.Scene {
   private bossActive = false
   private gauntletActive = false
   private gauntletStage = 0
+  private bossTimers: Phaser.Time.TimerEvent[] = []
+  private currentBoss?: Phaser.Physics.Arcade.Sprite
+  private currentBossType = 0
+  private currentBossPhase = -1
 
   private bgFar?: Phaser.GameObjects.TileSprite
   private bgMid?: Phaser.GameObjects.TileSprite
@@ -30,10 +34,13 @@ export default class GameScene extends Phaser.Scene {
 
   private xpGroup!: Phaser.Physics.Arcade.Group
   private goldGroup!: Phaser.Physics.Arcade.Group
+  private healthGroup!: Phaser.Physics.Arcade.Group
   private xpTextureKey = 'xp-gem'
   private goldTextureKey = 'gold-coin'
+  private healthTextureKey = 'health-pack'
   private xpSpawnAcc = 0
   private goldSpawnAcc = 0
+  private healthSpawnAcc = 0
 
   private level = 1
   private xpToNext = 5
@@ -50,10 +57,11 @@ export default class GameScene extends Phaser.Scene {
   private bulletDamage = 1
   private multishot = 1
   private spreadDeg = 10
-  private weaponCooldowns: Record<string, number> = {}
+  // reserved for per-weapon cooldowns (future use)
+  // private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
   private laserBeamAccum = 0
-  private laserTickCooldown = 0
+  // private laserTickCooldown = 0
 
   // Player health
   private hpMax = 10
@@ -85,6 +93,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Restore health at the start of every level
+    this.hpCur = this.hpMax
     // Build background for current level
     this.setupBackgroundForLevel((runState.state?.level ?? 1))
 
@@ -129,8 +139,10 @@ export default class GameScene extends Phaser.Scene {
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
     this.createGoldTexture(this.goldTextureKey)
+    this.createHealthTexture(this.healthTextureKey)
     this.xpGroup = this.physics.add.group()
     this.goldGroup = this.physics.add.group()
+    this.healthGroup = this.physics.add.group()
 
     this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
@@ -145,6 +157,13 @@ export default class GameScene extends Phaser.Scene {
       sprite.destroy()
       const cur = (this.registry.get('gold') as number) || 0
       this.registry.set('gold', cur + 1)
+    })
+    this.physics.add.overlap(this.player, this.healthGroup, (_, pickup) => {
+      const sprite = pickup as Phaser.Physics.Arcade.Sprite
+      sprite.destroy()
+      const heal = Math.max(1, Math.ceil(this.hpMax * 0.2)) // 20% heal, min 1
+      this.hpCur = Math.min(this.hpMax, this.hpCur + heal)
+      this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
     })
 
     // Player <-> enemy collision damage
@@ -244,8 +263,10 @@ export default class GameScene extends Phaser.Scene {
     // Pickup spawns (placeholder: also spawned from ring for testing)
     const xpPerSec = 0.25
     const goldPerSec = 0.15
+    const healthPerSec = 0.05 // rare health packs
     this.xpSpawnAcc += xpPerSec * dt
     this.goldSpawnAcc += goldPerSec * dt
+    this.healthSpawnAcc += healthPerSec * dt
     while (this.xpSpawnAcc >= 1) {
       this.xpSpawnAcc -= 1
       this.spawnPickupInRing(camCenter.x, camCenter.y, 'xp')
@@ -253,6 +274,10 @@ export default class GameScene extends Phaser.Scene {
     while (this.goldSpawnAcc >= 1) {
       this.goldSpawnAcc -= 1
       this.spawnPickupInRing(camCenter.x, camCenter.y, 'gold')
+    }
+    while (this.healthSpawnAcc >= 1) {
+      this.healthSpawnAcc -= 1
+      this.spawnPickupInRing(camCenter.x, camCenter.y, 'health')
     }
 
     this.updatePickups(camCenter.x, camCenter.y)
@@ -275,6 +300,12 @@ export default class GameScene extends Phaser.Scene {
           this.spawnNextGauntletBoss(camCenter.x, camCenter.y)
         }
       }
+    }
+    // Slight boss balance tuning based on elapsed
+    if (this.bossActive) {
+      const ease = Math.min(1, Math.max(0, (elapsedSec - 30) / 180))
+      this.bulletDamage = Math.max(1, this.bulletDamage)
+      // could scale boss fire rates here if needed in future based on `ease`
     }
 
     // Autofire weapon
@@ -630,7 +661,7 @@ export default class GameScene extends Phaser.Scene {
     const hasLaser = inv2.weapons.some((w) => w.key === 'laser')
     const hasBeamLaser = inv2.weapons.some((w) => w.key === 'beam-laser')
     if (this.player && (hasLaser || hasBeamLaser)) {
-      const spinSpeed = hasBeamLaser ? 240 : 180
+      const spinSpeed = hasBeamLaser ? 260 : 190
       const rate = this.fireRate * (hasBeamLaser ? 1.6 : 1.2)
       this.laserAngle = (this.laserAngle + spinSpeed * dt) % 360
       this.laserBeamAccum += dt
@@ -638,9 +669,9 @@ export default class GameScene extends Phaser.Scene {
         this.laserBeamAccum -= 1 / Math.max(0.1, rate)
         const a = this.laserAngle
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * 12
-        const oy = this.player.y + Math.sin(rad) * 12
-        const len = hasBeamLaser ? 130 : 100
+        const ox = this.player.x + Math.cos(rad) * 14
+        const oy = this.player.y + Math.sin(rad) * 14
+        const len = hasBeamLaser ? 140 : 105
         this.spawnBeam(ox, oy, a, len)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
         if (shot) {
@@ -742,6 +773,23 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
   }
 
+  private showTelegraphLine(x1: number, y1: number, x2: number, y2: number, durationMs: number) {
+    const g = this.add.graphics().setDepth(980)
+    g.lineStyle(2, 0xff4444, 0.8)
+    g.beginPath()
+    g.moveTo(x1, y1)
+    g.lineTo(x2, y2)
+    g.strokePath()
+    this.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
+  }
+
+  private showTelegraphCircle(x: number, y: number, radius: number, durationMs: number) {
+    const g = this.add.graphics().setDepth(980)
+    g.lineStyle(2, 0xffaa00, 0.85)
+    g.strokeCircle(x, y, radius)
+    this.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
+  }
+
   private onBulletHit(bullet: Phaser.GameObjects.GameObject, enemyObj: Phaser.GameObjects.GameObject) {
     const b = bullet as Phaser.Physics.Arcade.Sprite
     const e = enemyObj as Phaser.Physics.Arcade.Sprite
@@ -760,8 +808,9 @@ export default class GameScene extends Phaser.Scene {
       if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
       const isBoss = !!(e as any).isBoss
       e.disableBody(true, true)
-      if (isBoss) {
-        this.bossActive = false
+    if (isBoss) {
+      this.clearBossTimers()
+      this.bossActive = false
         const level = runState.state?.level ?? 1
         if (level < 5) {
           this.scene.stop('HUD')
@@ -782,6 +831,7 @@ export default class GameScene extends Phaser.Scene {
     } else {
       if ((e as any).isBoss) {
         this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
+        this.configureBossPhase()
       }
     }
   }
@@ -1082,7 +1132,7 @@ export default class GameScene extends Phaser.Scene {
     ;(enemy as any).stunUntil = 0
   }
 
-  private spawnBoss(cx: number, cy: number) {
+  private spawnBoss(cx: number, cy: number, type?: number) {
     const radius = Math.hypot(this.scale.width, this.scale.height) * 0.4
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const x = cx + Math.cos(angle) * radius
@@ -1092,32 +1142,24 @@ export default class GameScene extends Phaser.Scene {
     boss.enableBody(true, x, y, true, true)
     boss.setScale(2)
     boss.setCircle(6, 2, 2)
-    ;(boss as any).hp = 80
-    ;(boss as any).hpMax = 80
+    ;(boss as any).hp = type === 5 ? 260 : 80
+    ;(boss as any).hpMax = (boss as any).hp
     ;(boss as any).touchDamage = 2
     ;(boss as any).chase = 25
     ;(boss as any).isBoss = true
     this.registry.set('boss-hp', { cur: (boss as any).hp, max: (boss as any).hpMax || (boss as any).hp })
     this.clearNonBossEnemies()
-    // Simple radial bullet spray every 1.5s
-    this.time.addEvent({
-      delay: 1500,
-      loop: true,
-      callback: () => {
-        if (!boss.active) return
-        const center = { x: boss.x, y: boss.y }
-        for (let i = 0; i < 8; i++) {
-          const ang = (i / 8) * 360
-          this.spawnEnemyBullet(center.x, center.y, ang)
-        }
-      },
-    })
+    this.clearBossTimers()
+    this.currentBoss = boss
+    this.currentBossType = type ?? (runState.state?.level ?? 1)
+    this.currentBossPhase = -1
+    this.configureBossPhase()
   }
 
   private spawnNextGauntletBoss(cx: number, cy: number) {
     // Stages 0-3: previous 4 bosses placeholder; stage 4: final boss
     if (this.gauntletStage < 4) {
-      this.spawnBoss(cx, cy)
+      this.spawnBoss(cx, cy, this.gauntletStage + 1)
       this.bossActive = true
     } else {
       // Final boss with extra HP
@@ -1130,14 +1172,23 @@ export default class GameScene extends Phaser.Scene {
       boss.enableBody(true, x, y, true, true)
       boss.setScale(2.2)
       boss.setCircle(7, 2, 2)
-      ;(boss as any).hp = 140
-      ;(boss as any).hpMax = 140
+      ;(boss as any).hp = 260
+      ;(boss as any).hpMax = 260
       ;(boss as any).touchDamage = 3
       ;(boss as any).chase = 30
       ;(boss as any).isBoss = true
       this.bossActive = true
       this.registry.set('boss-hp', { cur: (boss as any).hp, max: (boss as any).hpMax || (boss as any).hp })
       this.clearNonBossEnemies()
+      this.clearBossTimers()
+      // Final boss combo patterns
+      let a = 0
+      this.bossTimers.push(this.time.addEvent({ delay: 60, loop: true, callback: () => {
+        if (!boss.active) return
+        const c = { x: boss.x, y: boss.y }
+        this.spawnEnemyBullet(c.x, c.y, a)
+        a = (a + 24) % 360
+      }}))
     }
   }
 
@@ -1146,6 +1197,166 @@ export default class GameScene extends Phaser.Scene {
     for (const enemy of children) {
       if (!enemy || !enemy.active) continue
       if (!(enemy as any).isBoss) enemy.disableBody(true, true)
+    }
+  }
+
+  private clearBossTimers() {
+    for (const t of this.bossTimers) t.remove(false)
+    this.bossTimers = []
+  }
+
+  private configureBossPhase() {
+    const boss = this.currentBoss
+    if (!boss || !boss.active) return
+    const hp = (boss as any).hp as number
+    const hpMax = (boss as any).hpMax as number
+    const pct = Math.max(0, Math.min(1, hp / Math.max(1, hpMax)))
+    let nextPhase = 0
+    if (this.currentBossType === 5) {
+      // Final boss thresholds: >66%, 66–33%, <33–15%, <14%
+      if (pct > 0.66) nextPhase = 0
+      else if (pct > 0.33) nextPhase = 1
+      else if (pct > 0.15) nextPhase = 2
+      else nextPhase = 3
+    } else {
+      // Bosses 1–4: >66%, 66–33%, <33%
+      if (pct > 0.66) nextPhase = 0
+      else if (pct > 0.33) nextPhase = 1
+      else nextPhase = 2
+    }
+    if (nextPhase === this.currentBossPhase) return
+    this.currentBossPhase = nextPhase
+    this.clearBossTimers()
+
+    // Reconfigure timers by boss type and phase
+    const c = () => ({ x: boss.x, y: boss.y })
+    const aimToPlayer = () => this.player ? Math.atan2(this.player.y - boss.y, this.player.x - boss.x) : 0
+
+    if (this.currentBossType === 1) {
+      // Radial volleys → faster, denser
+      const bursts = [12, 16, 20]
+      const delays = [1400, 1100, 900]
+      const i = Math.min(this.currentBossPhase, 2)
+      this.bossTimers.push(this.time.addEvent({ delay: delays[i], loop: true, callback: () => {
+        if (!boss.active) return
+        const center = c()
+        const count = bursts[i]
+        for (let k = 0; k < count; k++) this.spawnEnemyBullet(center.x, center.y, (k / count) * 360)
+      }}))
+    } else if (this.currentBossType === 2) {
+      // Spiral stream → speed/rate ramps
+      let a = 0
+      const delays = [90, 70, 55]
+      const step = [18, 22, 26]
+      const i = Math.min(this.currentBossPhase, 2)
+      this.bossTimers.push(this.time.addEvent({ delay: delays[i], loop: true, callback: () => {
+        if (!boss.active) return
+        const center = c()
+        this.spawnEnemyBullet(center.x, center.y, a)
+        a = (a + step[i]) % 360
+      }}))
+    } else if (this.currentBossType === 3) {
+      // Dashes → shorter telegraph, faster dash per phase
+      const tele = [350, 300, 240]
+      const spd = [160, 190, 220]
+      const dur = [420, 450, 520]
+      const i = Math.min(this.currentBossPhase, 2)
+      this.bossTimers.push(this.time.addEvent({ delay: 2200 - i * 300, loop: true, callback: () => {
+        if (!boss.active) return
+        const ang = aimToPlayer()
+        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 140, boss.y + Math.sin(ang) * 140, tele[i])
+        this.time.delayedCall(tele[i], () => {
+          if (!boss.active) return
+          boss.setVelocity(Math.cos(ang) * spd[i], Math.sin(ang) * spd[i])
+          this.time.delayedCall(dur[i], () => boss.active && boss.setVelocity(0, 0))
+        })
+      }}))
+    } else if (this.currentBossType === 4) {
+      // Ring burst → more telegraphs, then bigger burst
+      const ringR = [60, 68, 76]
+      const count = [10, 14, 18]
+      const tele = [400, 350, 300]
+      const delay = [2500, 2200, 1900]
+      const i = Math.min(this.currentBossPhase, 2)
+      this.bossTimers.push(this.time.addEvent({ delay: delay[i], loop: true, callback: () => {
+        if (!boss.active) return
+        const center = c()
+        for (let k = 0; k < count[i]; k++) {
+          const ang = (k / count[i]) * Math.PI * 2
+          const rx = center.x + Math.cos(ang) * ringR[i]
+          const ry = center.y + Math.sin(ang) * ringR[i]
+          this.showTelegraphCircle(rx, ry, 8, tele[i])
+        }
+        this.time.delayedCall(tele[i], () => {
+          if (!boss.active) return
+          for (let k = 0; k < count[i]; k++) this.spawnEnemyBullet(center.x, center.y, (k / count[i]) * 360)
+        })
+      }}))
+    } else {
+      // Final boss multi-phase combo
+      if (this.currentBossPhase === 0) {
+        // Faster spiral
+        let a = 0
+        this.bossTimers.push(this.time.addEvent({ delay: 70, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          this.spawnEnemyBullet(center.x, center.y, a)
+          a = (a + 20) % 360
+        }}))
+      } else if (this.currentBossPhase === 1) {
+        // Spiral + occasional dash
+        let a = 0
+        this.bossTimers.push(this.time.addEvent({ delay: 65, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          this.spawnEnemyBullet(center.x, center.y, a)
+          a = (a + 22) % 360
+        }}))
+        this.bossTimers.push(this.time.addEvent({ delay: 2600, loop: true, callback: () => {
+          if (!boss.active) return
+          const ang = aimToPlayer()
+          this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 150, boss.y + Math.sin(ang) * 150, 320)
+          this.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185, Math.sin(ang) * 185))
+          this.time.delayedCall(670, () => boss.active && boss.setVelocity(0, 0))
+        }}))
+      } else if (this.currentBossPhase === 2) {
+        // Add ring bursts
+        let a = 0
+        this.bossTimers.push(this.time.addEvent({ delay: 60, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          this.spawnEnemyBullet(center.x, center.y, a)
+          a = (a + 24) % 360
+        }}))
+        this.bossTimers.push(this.time.addEvent({ delay: 2000, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          const cnt = 16
+          for (let k = 0; k < cnt; k++) this.spawnEnemyBullet(center.x, center.y, (k / cnt) * 360)
+        }}))
+      } else {
+        // Enrage: fast dashes + dense rings
+        let a = 0
+        this.bossTimers.push(this.time.addEvent({ delay: 55, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          this.spawnEnemyBullet(center.x, center.y, a)
+          a = (a + 26) % 360
+        }}))
+        this.bossTimers.push(this.time.addEvent({ delay: 1600, loop: true, callback: () => {
+          if (!boss.active) return
+          const center = c()
+          const cnt = 22
+          for (let k = 0; k < cnt; k++) this.spawnEnemyBullet(center.x, center.y, (k / cnt) * 360)
+        }}))
+        this.bossTimers.push(this.time.addEvent({ delay: 2200, loop: true, callback: () => {
+          if (!boss.active) return
+          const ang = aimToPlayer()
+          this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 160, boss.y + Math.sin(ang) * 160, 260)
+          this.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200, Math.sin(ang) * 200))
+          this.time.delayedCall(600, () => boss.active && boss.setVelocity(0, 0))
+        }}))
+      }
     }
   }
 
@@ -1194,7 +1405,21 @@ export default class GameScene extends Phaser.Scene {
     gfx.destroy()
   }
 
-  private spawnPickupInRing(cx: number, cy: number, kind: 'xp' | 'gold') {
+  private createHealthTexture(key: string) {
+    if (this.textures.exists(key)) return
+    const size = 7
+    const gfx = this.add.graphics()
+    gfx.fillStyle(0x33ff66, 1)
+    gfx.fillRect(0, 0, size, size)
+    gfx.fillStyle(0xffffff, 1)
+    // simple plus sign
+    gfx.fillRect(size/2 - 1, 1, 2, size - 2)
+    gfx.fillRect(1, size/2 - 1, size - 2, 2)
+    gfx.generateTexture(key, size, size)
+    gfx.destroy()
+  }
+
+  private spawnPickupInRing(cx: number, cy: number, kind: 'xp' | 'gold' | 'health') {
     const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
     const inner = viewRadius * 0.9
     const outer = inner + 60
@@ -1206,8 +1431,12 @@ export default class GameScene extends Phaser.Scene {
       const p = this.xpGroup.create(x, y, this.xpTextureKey) as Phaser.Physics.Arcade.Sprite
       p.setActive(true)
       p.setVisible(true)
-    } else {
+    } else if (kind === 'gold') {
       const p = this.goldGroup.create(x, y, this.goldTextureKey) as Phaser.Physics.Arcade.Sprite
+      p.setActive(true)
+      p.setVisible(true)
+    } else {
+      const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
       p.setActive(true)
       p.setVisible(true)
     }
@@ -1215,7 +1444,7 @@ export default class GameScene extends Phaser.Scene {
 
   private updatePickups(cx: number, cy: number) {
     const despawnRadius = Math.hypot(this.scale.width, this.scale.height)
-    const groups = [this.xpGroup, this.goldGroup]
+    const groups = [this.xpGroup, this.goldGroup, this.healthGroup]
     for (const g of groups) {
       const children = g.getChildren() as Phaser.Physics.Arcade.Sprite[]
       for (const obj of children) {
@@ -1256,6 +1485,7 @@ export default class GameScene extends Phaser.Scene {
         { key: 'firerate', label: 'Blaster +15% fire rate', color: '#88ff88' },
         { key: 'damage', label: 'Blaster +1 damage', color: '#ff8866' },
         { key: 'multishot', label: 'Blaster +1 projectile', color: '#ccccff' },
+        { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
         { key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' },
         { key: 'acc-magnet-core', label: 'Accessory: Magnet Core', color: '#33ff99' },
         { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' },
@@ -1275,6 +1505,12 @@ export default class GameScene extends Phaser.Scene {
         if (key === 'firerate') this.fireRate = Math.min(8, this.fireRate * 1.15)
         if (key === 'damage') this.bulletDamage = Math.min(99, this.bulletDamage + 1)
         if (key === 'multishot') this.multishot = Math.min(7, this.multishot + 1)
+        if (key === 'hpmax') {
+          const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
+          this.hpMax = Math.min(99, this.hpMax + inc)
+          this.hpCur = Math.min(this.hpMax, this.hpCur + inc) // small immediate heal
+          this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+        }
         // Accessories
         if (key.startsWith('acc-')) {
           const inv = (this.registry.get('inv') as InventoryState) || createInventory()
