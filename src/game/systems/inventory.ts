@@ -1,5 +1,7 @@
 export const MAX_WEAPONS = 5
 export const MAX_ACCESSORIES = 5
+export const MAX_WEAPON_LEVEL = 5
+export const MAX_ACCESSORY_LEVEL = 5
 
 export type WeaponKey =
   | 'blaster'
@@ -44,7 +46,7 @@ export function createInventory(): InventoryState {
 export function addWeapon(inv: InventoryState, key: WeaponKey): boolean {
   const found = inv.weapons.find((w) => w.key === key)
   if (found) {
-    found.level += 1
+    found.level = Math.min(MAX_WEAPON_LEVEL, found.level + 1)
     return true
   }
   if (inv.weapons.length >= MAX_WEAPONS) return false
@@ -63,7 +65,7 @@ export function evolveWeapon(inv: InventoryState, fromKey: WeaponKey, toKey: Wea
 export function addAccessory(inv: InventoryState, key: string): boolean {
   const found = inv.accessories.find((a) => a.key === key)
   if (found) {
-    found.level += 1
+    found.level = Math.min(MAX_ACCESSORY_LEVEL, found.level + 1)
     return true
   }
   if (inv.accessories.length >= MAX_ACCESSORIES) return false

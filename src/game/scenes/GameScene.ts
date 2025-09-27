@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 // options are referenced dynamically in onPlayerTouched to avoid import inlining issues
-import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons } from '../systems/inventory'
+import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons, MAX_WEAPON_LEVEL, MAX_ACCESSORY_LEVEL } from '../systems/inventory'
 import { evolveWeapon } from '../systems/inventory'
 import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel, computeEvolution } from '../systems/items'
 import { getOptions } from '../systems/options'
@@ -67,6 +67,8 @@ export default class GameScene extends Phaser.Scene {
   private bonusMultishot = 0
   private bonusSpeedMul = 1
   private bonusMagnet = 0
+  private bonusLevelsUsed = 0
+  private readonly maxBonusLevels = 10
   // reserved for per-weapon cooldowns (future use)
   // private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
@@ -153,6 +155,7 @@ export default class GameScene extends Phaser.Scene {
     this.bonusMultishot = 0
     this.bonusSpeedMul = 1
     this.bonusMagnet = 0
+    this.bonusLevelsUsed = 0
 
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
@@ -1414,7 +1417,7 @@ export default class GameScene extends Phaser.Scene {
       return
     }
     const pick = Phaser.Utils.Array.GetRandom(owned)
-    const isMax = false // placeholder cap check not enforced here; treat as not max
+    const isMax = pick.kind === 'w' ? pick.level >= MAX_WEAPON_LEVEL : pick.level >= MAX_ACCESSORY_LEVEL
     if (isMax) {
       // 50 gold or full heal
       if (Math.random() < 0.5) {
@@ -1428,16 +1431,16 @@ export default class GameScene extends Phaser.Scene {
     if (pick.kind === 'w') {
       // level up weapon
       const w = inv.weapons.find((x) => x.key === pick.key)
-      if (w) w.level = w.level + 1
+      if (w) w.level = Math.min(MAX_WEAPON_LEVEL, w.level + 1)
       this.registry.set('inv', inv)
-      this.registry.set('inv-weapons', (window as any) ? (this.registry.get('inv-weapons')) : '')
+      this.registry.set('inv-weapons', describeWeapons(inv))
       this.recomputeEffectiveStats()
       this.registry.set('toast', `Power-up: ${pick.key} Lv${w?.level}`)
     } else {
       const a = inv.accessories.find((x) => x.key === pick.key)
-      if (a) a.level = a.level + 1
+      if (a) a.level = Math.min(MAX_ACCESSORY_LEVEL, a.level + 1)
       this.registry.set('inv', inv)
-      this.registry.set('inv-accessories', (window as any) ? (this.registry.get('inv-accessories')) : '')
+      this.registry.set('inv-accessories', describeAccessories(inv))
       this.recomputeEffectiveStats()
       this.registry.set('toast', `Power-up: ${pick.key} Lv${a?.level}`)
     }
@@ -1541,17 +1544,19 @@ export default class GameScene extends Phaser.Scene {
       this.scene.launch('LevelUp', { choices })
       // Apply choice when LevelUpScene emits
       const applyOnce = (key: string) => {
-        if (key === 'speed') this.bonusSpeedMul = Math.min(2.5, this.bonusSpeedMul * 1.1)
-        if (key === 'magnet') this.bonusMagnet = Math.min(280, this.bonusMagnet + 24)
+        if (this.bonusLevelsUsed >= this.maxBonusLevels) { this.game.events.off('levelup-apply', applyOnce as any); this.scene.resume(); return }
+        if (key === 'speed') { this.bonusSpeedMul = Math.min(2.5, this.bonusSpeedMul * 1.1); this.bonusLevelsUsed++ }
+        if (key === 'magnet') { this.bonusMagnet = Math.min(280, this.bonusMagnet + 24); this.bonusLevelsUsed++ }
         if (key === 'gold') this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 5)
-        if (key === 'firerate') this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15)
-        if (key === 'damage') this.bonusDamage = Math.min(99, this.bonusDamage + 1)
-        if (key === 'multishot') this.bonusMultishot = Math.min(6, this.bonusMultishot + 1)
+        if (key === 'firerate') { this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15); this.bonusLevelsUsed++ }
+        if (key === 'damage') { this.bonusDamage = Math.min(99, this.bonusDamage + 1); this.bonusLevelsUsed++ }
+        if (key === 'multishot') { this.bonusMultishot = Math.min(6, this.bonusMultishot + 1); this.bonusLevelsUsed++ }
         if (key === 'hpmax') {
           const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
           this.hpMax = Math.min(99, this.hpMax + inc)
           this.hpCur = Math.min(this.hpMax, this.hpCur + inc) // small immediate heal
           this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+          this.bonusLevelsUsed++
         }
         // Accessories
         if (key.startsWith('acc-')) {
