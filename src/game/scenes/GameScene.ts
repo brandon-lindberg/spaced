@@ -37,9 +37,11 @@ export default class GameScene extends Phaser.Scene {
   private xpGroup!: Phaser.Physics.Arcade.Group
   private goldGroup!: Phaser.Physics.Arcade.Group
   private healthGroup!: Phaser.Physics.Arcade.Group
+  private powerupGroup!: Phaser.Physics.Arcade.Group
   private xpTextureKey = 'xp-gem'
   private goldTextureKey = 'gold-coin'
   private healthTextureKey = 'health-pack'
+  private powerupTextureKey = 'powerup-chip'
   private xpSpawnAcc = 0
   private goldSpawnAcc = 0
   private healthSpawnAcc = 0
@@ -59,6 +61,12 @@ export default class GameScene extends Phaser.Scene {
   private bulletDamage = 1
   private multishot = 1
   private spreadDeg = 10
+  // In-run bonus modifiers from level-up choices (applied on top of inventory stats)
+  private bonusFireRateMul = 1
+  private bonusDamage = 0
+  private bonusMultishot = 0
+  private bonusSpeedMul = 1
+  private bonusMagnet = 0
   // reserved for per-weapon cooldowns (future use)
   // private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
@@ -128,6 +136,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.createEnemyTexture(this.enemyTextureKey)
     this.enemies = this.physics.add.group()
+    // Prevent enemies from overlapping each other (basic separation)
+    this.physics.add.collider(this.enemies, this.enemies)
     const rs = runState.startLevel(runState.state?.level ?? 1, this.time.now)
     this.levelStartMs = rs?.levelStartMs ?? this.time.now
 
@@ -137,14 +147,22 @@ export default class GameScene extends Phaser.Scene {
     if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) {
       this.registry.set('gold', 0)
     }
+    // Reset in-run bonus modifiers
+    this.bonusFireRateMul = 1
+    this.bonusDamage = 0
+    this.bonusMultishot = 0
+    this.bonusSpeedMul = 1
+    this.bonusMagnet = 0
 
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
     this.createGoldTexture(this.goldTextureKey)
     this.createHealthTexture(this.healthTextureKey)
+    this.createPowerupTexture(this.powerupTextureKey)
     this.xpGroup = this.physics.add.group()
     this.goldGroup = this.physics.add.group()
     this.healthGroup = this.physics.add.group()
+    this.powerupGroup = this.physics.add.group()
 
     this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
@@ -166,6 +184,11 @@ export default class GameScene extends Phaser.Scene {
       const heal = Math.max(1, Math.ceil(this.hpMax * 0.2)) // 20% heal, min 1
       this.hpCur = Math.min(this.hpMax, this.hpCur + heal)
       this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    })
+    this.physics.add.overlap(this.player, this.powerupGroup, (_, pickup) => {
+      const sprite = pickup as Phaser.Physics.Arcade.Sprite
+      sprite.destroy()
+      this.applyPowerupReward()
     })
 
     // Player <-> enemy collision damage
@@ -828,6 +851,10 @@ export default class GameScene extends Phaser.Scene {
             this.scene.start('Victory')
           }
         }
+      } else if ((e as any).elite || (e as any).isElite) {
+        // Elite killed: drop a power-up upgrade for an owned weapon/accessory; if maxed, 50 gold or full heal
+        const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
+        if (p) { p.setActive(true); p.setVisible(true) }
       }
     } else {
       if ((e as any).isBoss) {
@@ -843,11 +870,12 @@ export default class GameScene extends Phaser.Scene {
     const s = { ...defaultBaseStats }
     for (const w of inv.weapons) applyWeaponLevel(s as any, w.key as any, w.level)
     for (const a of inv.accessories) applyAccessoryLevel(s as any, a.key as any, a.level)
-    this.fireRate = Math.min(8, s.fireRate)
-    this.bulletDamage = Math.max(1, s.bulletDamage)
-    this.multishot = Math.min(7, Math.max(1, Math.floor(s.multishot)))
-    this.speedMultiplier = Math.max(0.5, Math.min(2.5, s.speedMultiplier))
-    this.magnetRadius = Math.max(16, Math.min(280, s.magnetRadius))
+    // apply in-run bonus modifiers
+    this.fireRate = Math.min(8, s.fireRate * this.bonusFireRateMul)
+    this.bulletDamage = Math.max(1, s.bulletDamage + this.bonusDamage)
+    this.multishot = Math.min(7, Math.max(1, Math.floor(s.multishot + this.bonusMultishot)))
+    this.speedMultiplier = Math.max(0.5, Math.min(2.5, s.speedMultiplier * this.bonusSpeedMul))
+    this.magnetRadius = Math.max(16, Math.min(280, s.magnetRadius + this.bonusMagnet))
     this.spreadDeg = Math.max(4, Math.min(30, s.spreadDeg ?? 10))
 
     // Accessory set bonuses
@@ -1062,16 +1090,31 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).hp = Math.max(1, Math.round(2 * hpScale))
       ;(enemy as any).chase = 42
       ;(enemy as any).touchDamage = touch
+      enemy.setTint(0xff6666)
     } else if (type === 'chaser') {
       ;(enemy as any).hp = Math.round(4 * hpScale)
-      ;(enemy as any).chase = 70
+      ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
+      enemy.setTint(0x66ccff)
     } else {
       ;(enemy as any).hp = Math.round(7 * hpScale)
-      ;(enemy as any).chase = 28
+      ;(enemy as any).chase = 24
       ;(enemy as any).touchDamage = touch + 1
+      enemy.setTint(0xaaaa55)
     }
     ;(enemy as any).stunUntil = 0
+
+    // Chance to spawn elite variant: boosted stats and distinct color
+    const eliteChance = Math.min(0.05 + elapsedSec * 0.0005, 0.15)
+    if (Math.random() < eliteChance) {
+      ;(enemy as any).elite = true
+      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 2)
+      ;(enemy as any).chase = Math.max(16, Math.round(((enemy as any).chase || 40) * 0.85))
+      ;(enemy as any).touchDamage = ((enemy as any).touchDamage || 1) + 1
+      enemy.setTint(0xff00ff)
+      enemy.setScale(1.15)
+      ;(enemy as any).isElite = true
+    }
   }
 
   private spawnBoss(cx: number, cy: number, type?: number) {
@@ -1347,6 +1390,59 @@ export default class GameScene extends Phaser.Scene {
     gfx.destroy()
   }
 
+  private createPowerupTexture(key: string) {
+    if (this.textures.exists(key)) return
+    const size = 8
+    const gfx = this.add.graphics()
+    gfx.fillStyle(0x99ffcc, 1)
+    gfx.fillRect(0, 0, size, size)
+    gfx.fillStyle(0x006644, 1)
+    gfx.fillRect(2, 2, size - 4, size - 4)
+    gfx.generateTexture(key, size, size)
+    gfx.destroy()
+  }
+
+  private applyPowerupReward() {
+    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
+    // Choose a random owned weapon or accessory
+    const owned: { kind: 'w' | 'a'; key: string; level: number }[] = []
+    for (const w of inv.weapons) owned.push({ kind: 'w', key: w.key, level: w.level })
+    for (const a of inv.accessories) owned.push({ kind: 'a', key: a.key, level: a.level })
+    if (owned.length === 0) {
+      // fallback: give gold
+      this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 25)
+      return
+    }
+    const pick = Phaser.Utils.Array.GetRandom(owned)
+    const isMax = false // placeholder cap check not enforced here; treat as not max
+    if (isMax) {
+      // 50 gold or full heal
+      if (Math.random() < 0.5) {
+        this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 50)
+      } else {
+        this.hpCur = this.hpMax
+        this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      }
+      return
+    }
+    if (pick.kind === 'w') {
+      // level up weapon
+      const w = inv.weapons.find((x) => x.key === pick.key)
+      if (w) w.level = w.level + 1
+      this.registry.set('inv', inv)
+      this.registry.set('inv-weapons', (window as any) ? (this.registry.get('inv-weapons')) : '')
+      this.recomputeEffectiveStats()
+      this.registry.set('toast', `Power-up: ${pick.key} Lv${w?.level}`)
+    } else {
+      const a = inv.accessories.find((x) => x.key === pick.key)
+      if (a) a.level = a.level + 1
+      this.registry.set('inv', inv)
+      this.registry.set('inv-accessories', (window as any) ? (this.registry.get('inv-accessories')) : '')
+      this.recomputeEffectiveStats()
+      this.registry.set('toast', `Power-up: ${pick.key} Lv${a?.level}`)
+    }
+  }
+
   private createHealthTexture(key: string) {
     if (this.textures.exists(key)) return
     const size = 7
@@ -1377,8 +1473,12 @@ export default class GameScene extends Phaser.Scene {
       const p = this.goldGroup.create(x, y, this.goldTextureKey) as Phaser.Physics.Arcade.Sprite
       p.setActive(true)
       p.setVisible(true)
-    } else {
+    } else if (kind === 'health') {
       const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
+      p.setActive(true)
+      p.setVisible(true)
+    } else {
+      const p = this.powerupGroup.create(x, y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
       p.setActive(true)
       p.setVisible(true)
     }
@@ -1386,7 +1486,7 @@ export default class GameScene extends Phaser.Scene {
 
   private updatePickups(cx: number, cy: number) {
     const despawnRadius = Math.hypot(this.scale.width, this.scale.height)
-    const groups = [this.xpGroup, this.goldGroup, this.healthGroup]
+    const groups = [this.xpGroup, this.goldGroup, this.healthGroup, this.powerupGroup]
     for (const g of groups) {
       const children = g.getChildren() as Phaser.Physics.Arcade.Sprite[]
       for (const obj of children) {
@@ -1441,12 +1541,12 @@ export default class GameScene extends Phaser.Scene {
       this.scene.launch('LevelUp', { choices })
       // Apply choice when LevelUpScene emits
       const applyOnce = (key: string) => {
-        if (key === 'speed') this.speedMultiplier = Math.min(2, this.speedMultiplier + 0.1)
-        if (key === 'magnet') this.magnetRadius = Math.min(200, this.magnetRadius + 24)
+        if (key === 'speed') this.bonusSpeedMul = Math.min(2.5, this.bonusSpeedMul * 1.1)
+        if (key === 'magnet') this.bonusMagnet = Math.min(280, this.bonusMagnet + 24)
         if (key === 'gold') this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 5)
-        if (key === 'firerate') this.fireRate = Math.min(8, this.fireRate * 1.15)
-        if (key === 'damage') this.bulletDamage = Math.min(99, this.bulletDamage + 1)
-        if (key === 'multishot') this.multishot = Math.min(7, this.multishot + 1)
+        if (key === 'firerate') this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15)
+        if (key === 'damage') this.bonusDamage = Math.min(99, this.bonusDamage + 1)
+        if (key === 'multishot') this.bonusMultishot = Math.min(6, this.bonusMultishot + 1)
         if (key === 'hpmax') {
           const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
           this.hpMax = Math.min(99, this.hpMax + inc)
