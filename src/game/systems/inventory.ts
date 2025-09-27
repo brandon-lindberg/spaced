@@ -11,6 +11,16 @@ export type WeaponKey =
   | 'cluster-missiles'
   | 'orb'
   | 'nova-orb'
+  | 'railgun'
+  | 'flamethrower'
+  | 'beam-arc'
+  | 'drones'
+  | 'mines'
+  | 'boomerang'
+  | 'shock-coil'
+  | 'chain-lightning'
+  | 'sawblade'
+  | 'shotgun'
 
 export interface WeaponInstance {
   key: WeaponKey

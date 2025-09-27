@@ -8,7 +8,27 @@ export type WeaponKey =
   | 'cluster-missiles'
   | 'orb'
   | 'nova-orb'
-export type AccessoryKey = 'thrusters' | 'magnet-core' | 'ammo-loader' | 'power-cell' | 'splitter'
+  | 'railgun'
+  | 'flamethrower'
+  | 'beam-arc'
+  | 'drones'
+  | 'mines'
+  | 'boomerang'
+  | 'shock-coil'
+  | 'chain-lightning'
+  | 'sawblade'
+  | 'shotgun'
+export type AccessoryKey =
+  | 'thrusters'
+  | 'magnet-core'
+  | 'ammo-loader'
+  | 'power-cell'
+  | 'splitter'
+  | 'plating'
+  | 'overclock'
+  | 'coolant'
+  | 'autoloader'
+  | 'targeting'
 
 export interface BaseStats {
   fireRate: number
@@ -76,6 +96,50 @@ export function applyWeaponLevel(stats: EffectiveStats, weaponKey: WeaponKey, le
     stats.bulletDamage += Math.max(0, level + 1)
     stats.fireRate *= 1.0
   }
+  if (weaponKey === 'railgun') {
+    stats.bulletDamage += 2 + level
+    stats.fireRate *= 0.7
+    stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 4)
+  }
+  if (weaponKey === 'flamethrower') {
+    stats.bulletDamage += Math.max(0, level)
+    stats.fireRate *= 1.6
+    stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 18)
+  }
+  if (weaponKey === 'beam-arc') {
+    stats.bulletDamage += 1 + level
+    stats.fireRate *= 1.2
+    stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 8)
+  }
+  if (weaponKey === 'drones') {
+    stats.bulletDamage += Math.max(0, level)
+    stats.fireRate *= 1.1
+  }
+  if (weaponKey === 'mines') {
+    stats.bulletDamage += 1 + level
+    stats.fireRate *= 0.9
+  }
+  if (weaponKey === 'boomerang') {
+    stats.bulletDamage += Math.max(0, level)
+    stats.fireRate *= 1.0
+  }
+  if (weaponKey === 'shock-coil') {
+    stats.bulletDamage += Math.max(0, level)
+    stats.fireRate *= 1.2
+  }
+  if (weaponKey === 'chain-lightning') {
+    stats.bulletDamage += 1 + level
+    stats.fireRate *= 1.0
+  }
+  if (weaponKey === 'sawblade') {
+    stats.bulletDamage += 1 + level
+    stats.fireRate *= 0.95
+  }
+  if (weaponKey === 'shotgun') {
+    stats.bulletDamage += Math.max(0, level)
+    stats.multishot += 2
+    stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 20)
+  }
 }
 
 export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey, level: number) {
@@ -95,7 +159,88 @@ export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey,
     case 'splitter':
       stats.multishot += 1 * level
       break
+    case 'plating':
+      // handled indirectly by HP elsewhere (placeholder)
+      break
+    case 'overclock':
+      stats.fireRate *= Math.pow(1.07, level)
+      break
+    case 'coolant':
+      stats.fireRate *= Math.pow(1.05, level)
+      break
+    case 'autoloader':
+      stats.fireRate *= Math.pow(1.06, level)
+      break
+    case 'targeting':
+      stats.spreadDeg = Math.max((stats.spreadDeg ?? 10) - 1 * level, 4)
+      break
+    // Armor-like accessory: plating — reduce incoming damage by 1 at key thresholds (handled in scene)
   }
+}
+
+export type SynergyRule = {
+  base: WeaponKey
+  requires: { accessories?: { key: AccessoryKey; level: number }[]; weaponLevel?: number }
+  evolvesTo: WeaponKey
+}
+
+export const synergyMatrix: SynergyRule[] = [
+  {
+    base: 'blaster',
+    requires: { weaponLevel: 3, accessories: [{ key: 'splitter', level: 1 }, { key: 'power-cell', level: 1 }] },
+    evolvesTo: 'scatter-blaster',
+  },
+  {
+    base: 'blaster',
+    requires: { weaponLevel: 3, accessories: [{ key: 'ammo-loader', level: 1 }, { key: 'thrusters', level: 1 }] },
+    evolvesTo: 'pulse-blaster',
+  },
+  {
+    base: 'laser',
+    requires: { weaponLevel: 3, accessories: [{ key: 'magnet-core', level: 1 }] },
+    evolvesTo: 'beam-laser',
+  },
+  {
+    base: 'missiles',
+    requires: { weaponLevel: 2, accessories: [{ key: 'splitter', level: 1 }] },
+    evolvesTo: 'cluster-missiles',
+  },
+  {
+    base: 'orb',
+    requires: { weaponLevel: 2, accessories: [{ key: 'power-cell', level: 1 }] },
+    evolvesTo: 'nova-orb',
+  },
+  {
+    base: 'railgun',
+    requires: { weaponLevel: 2, accessories: [{ key: 'targeting', level: 1 }] },
+    evolvesTo: 'beam-arc',
+  },
+  {
+    base: 'shotgun',
+    requires: { weaponLevel: 3, accessories: [{ key: 'splitter', level: 1 }, { key: 'autoloader', level: 1 }] },
+    evolvesTo: 'scatter-blaster',
+  },
+  {
+    base: 'missiles',
+    requires: { weaponLevel: 3, accessories: [{ key: 'targeting', level: 1 }, { key: 'overclock', level: 1 }] },
+    evolvesTo: 'cluster-missiles',
+  },
+]
+
+export function computeEvolution(
+  weapons: { key: WeaponKey; level: number }[],
+  accessories: { key: string; level: number }[]
+): WeaponKey | null {
+  for (const rule of synergyMatrix) {
+    const w = weapons.find((x) => x.key === rule.base)
+    if (!w) continue
+    if (rule.requires.weaponLevel && w.level < rule.requires.weaponLevel) continue
+    const need = rule.requires.accessories ?? []
+    const ok = need.every((req) => accessories.some((a) => a.key === req.key && a.level >= req.level))
+    if (!ok) continue
+    return rule.evolvesTo
+  }
+  return null
 }
 
 

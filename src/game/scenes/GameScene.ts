@@ -1,7 +1,9 @@
 import Phaser from 'phaser'
+// options are referenced dynamically in onPlayerTouched to avoid import inlining issues
 import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons } from '../systems/inventory'
 import { evolveWeapon } from '../systems/inventory'
-import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel } from '../systems/items'
+import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel, computeEvolution } from '../systems/items'
+import { getOptions } from '../systems/options'
 import { runState } from '../systems/runState'
 import type { InventoryState } from '../systems/inventory'
 
@@ -303,9 +305,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // Slight boss balance tuning based on elapsed
     if (this.bossActive) {
-      const ease = Math.min(1, Math.max(0, (elapsedSec - 30) / 180))
-      this.bulletDamage = Math.max(1, this.bulletDamage)
-      // could scale boss fire rates here if needed in future based on `ease`
+      // reserved for future boss dynamic tuning
     }
 
     // Autofire weapon
@@ -799,7 +799,7 @@ export default class GameScene extends Phaser.Scene {
     ;(e as any).hp = hp
     b.disableBody(true, true)
     // Missile impact explosion
-    if ((b as any).missile) {
+      if ((b as any).missile) {
       this.showExplosion(e.x, e.y, 16)
     }
     if (hp <= 0) {
@@ -811,6 +811,7 @@ export default class GameScene extends Phaser.Scene {
     if (isBoss) {
       this.clearBossTimers()
       this.bossActive = false
+      if (getOptions().screenShake) this.cameras.main.shake(200, 0.01)
         const level = runState.state?.level ?? 1
         if (level < 5) {
           this.scene.stop('HUD')
@@ -831,6 +832,7 @@ export default class GameScene extends Phaser.Scene {
     } else {
       if ((e as any).isBoss) {
         this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
+        if (getOptions().screenShake) this.cameras.main.shake(100, 0.005)
         this.configureBossPhase()
       }
     }
@@ -864,57 +866,16 @@ export default class GameScene extends Phaser.Scene {
   }
   private tryEvolveWeapons() {
     const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    const hasBlaster = inv.weapons.some((w) => w.key === 'blaster' && w.level >= 3)
-    const hasSplitter = inv.accessories.some((a) => a.key === 'splitter' && a.level >= 1)
-    const hasPower = inv.accessories.some((a) => a.key === 'power-cell' && a.level >= 1)
-    if (hasBlaster && hasSplitter && hasPower) {
-      if (evolveWeapon(inv, 'blaster', 'scatter-blaster')) {
+    const evolved = computeEvolution(inv.weapons, inv.accessories)
+    if (evolved) {
+      // Find the base from the rule again to replace
+      // Simple approach: evolve first weapon that has a rule producing this evolved key
+      const base = inv.weapons.find((w) => computeEvolution([w], inv.accessories) === evolved)
+      if (base && evolveWeapon(inv, base.key as any, evolved as any)) {
         this.registry.set('inv', inv)
         this.registry.set('inv-weapons', describeWeapons(inv))
         this.recomputeEffectiveStats()
-        this.registry.set('toast', 'Evolved: Scatter Blaster!')
-      }
-    }
-    // Second synergy: Blaster + Ammo Loader + Thrusters => Pulse Blaster
-    const hasAmmo = inv.accessories.some((a) => a.key === 'ammo-loader' && a.level >= 1)
-    const hasThrusters = inv.accessories.some((a) => a.key === 'thrusters' && a.level >= 1)
-    if (hasBlaster && hasAmmo && hasThrusters) {
-      if (evolveWeapon(inv, 'blaster', 'pulse-blaster')) {
-        this.registry.set('inv', inv)
-        this.registry.set('inv-weapons', describeWeapons(inv))
-        this.recomputeEffectiveStats()
-        this.registry.set('toast', 'Evolved: Pulse Blaster!')
-      }
-    }
-    // Laser -> Beam Laser (requires Magnet Core)
-    const hasLaser = inv.weapons.some((w) => w.key === 'laser' && w.level >= 3)
-    const hasMagnet = inv.accessories.some((a) => a.key === 'magnet-core' && a.level >= 1)
-    if (hasLaser && hasMagnet) {
-      if (evolveWeapon(inv, 'laser', 'beam-laser')) {
-        this.registry.set('inv', inv)
-        this.registry.set('inv-weapons', describeWeapons(inv))
-        this.recomputeEffectiveStats()
-        this.registry.set('toast', 'Evolved: Beam Laser!')
-      }
-    }
-    // Missiles -> Cluster Missiles (requires Splitter)
-    const hasMissiles = inv.weapons.some((w) => w.key === 'missiles' && w.level >= 2)
-    if (hasMissiles && hasSplitter) {
-      if (evolveWeapon(inv, 'missiles', 'cluster-missiles')) {
-        this.registry.set('inv', inv)
-        this.registry.set('inv-weapons', describeWeapons(inv))
-        this.recomputeEffectiveStats()
-        this.registry.set('toast', 'Evolved: Cluster Missiles!')
-      }
-    }
-    // Orb -> Nova Orb (requires Power Cell)
-    const hasOrb = inv.weapons.some((w) => w.key === 'orb' && w.level >= 2)
-    if (hasOrb && hasPower) {
-      if (evolveWeapon(inv, 'orb', 'nova-orb')) {
-        this.registry.set('inv', inv)
-        this.registry.set('inv-weapons', describeWeapons(inv))
-        this.recomputeEffectiveStats()
-        this.registry.set('toast', 'Evolved: Nova Orb!')
+        this.registry.set('toast', `Evolved: ${evolved}!`)
       }
     }
   }
@@ -962,6 +923,8 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
     // Flash
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 4 })
+    // Subtle screen shake on hit if enabled
+    if (getOptions().screenShake) this.cameras.main.shake(120, 0.004)
     // Brief enemy knockback and stun
     const kbe = 90
     enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
@@ -1052,28 +1015,7 @@ export default class GameScene extends Phaser.Scene {
     this.joyThumb?.setPosition(this.joyCenterX + nx * this.joyRadius, this.joyCenterY + ny * this.joyRadius)
   }
 
-  private spawnEnemyInRing(cx: number, cy: number) {
-    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 80
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(inner, outer)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-
-    const enemy = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
-    enemy.enableBody(true, x, y, true, true)
-    // Enemy hitbox slightly smaller
-    enemy.setCircle(3, 1, 1)
-    enemy.setCollideWorldBounds(false)
-    ;(enemy as any).hp = 4
-    // Scale enemy touch damage very slowly over time (every 90s +1)
-    const elapsedSec = (this.time.now - this.levelStartMs) / 1000
-    ;(enemy as any).touchDamage = 1 + Math.floor(elapsedSec / 90)
-    ;(enemy as any).stunUntil = 0
-  }
-
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private spawnEnemyBullet(x: number, y: number, angleDeg: number) {
     const b = this.bullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
     if (!b) return

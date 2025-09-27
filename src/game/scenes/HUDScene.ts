@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { getOptions } from '../systems/options'
 
 export default class HUDScene extends Phaser.Scene {
   private heartIcon?: Phaser.GameObjects.Image
@@ -182,17 +183,17 @@ export default class HUDScene extends Phaser.Scene {
       }
     })
     refreshIcons()
-    if ((import.meta as any)?.env?.DEV) {
-      const fpsText = this.add.text(2, this.scale.height - 10, 'FPS', { fontFamily: 'monospace', fontSize: '8px', color: '#00ff88' }).setScrollFactor(0)
-      this.time.addEvent({
-        delay: 500,
-        loop: true,
-        callback: () => {
-          const fps = Math.round(this.game.loop.actualFps)
-          fpsText.setText(`FPS: ${fps}`)
-        },
-      })
-    }
+    const fpsText = this.add.text(2, this.scale.height - 10, 'FPS', { fontFamily: 'monospace', fontSize: '8px', color: '#00ff88' }).setScrollFactor(0)
+    fpsText.setVisible(!!getOptions().showFPS)
+    this.time.addEvent({
+      delay: 500,
+      loop: true,
+      callback: () => {
+        const fps = Math.round(this.game.loop.actualFps)
+        fpsText.setText(`FPS: ${fps}`)
+        fpsText.setVisible(!!getOptions().showFPS)
+      },
+    })
   }
 }
 
