@@ -45,7 +45,7 @@ export default class GameScene extends Phaser.Scene {
   // removed passive pickup spawners
 
   private level = 1
-  private xpToNext = 5
+  private xpToNext = 3
   private magnetRadius = 16
   private speedMultiplier = 1
 
@@ -147,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) {
       this.registry.set('gold', 0)
     }
+    this.registry.set('boss-hp', null)
     // Reset in-run bonus modifiers
     this.bonusFireRateMul = 1
     this.bonusDamage = 0
@@ -167,6 +168,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
+      const isXp = (sprite.texture && sprite.texture.key === this.xpTextureKey) || (sprite.getData && sprite.getData('kind') === 'xp')
+      if (!isXp) return
       sprite.destroy()
       const cur = (this.registry.get('xp') as number) || 0
       const next = cur + 1
@@ -175,6 +178,8 @@ export default class GameScene extends Phaser.Scene {
     })
     this.physics.add.overlap(this.player, this.goldGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
+      const isGold = (sprite.texture && sprite.texture.key === this.goldTextureKey) || (sprite.getData && sprite.getData('kind') === 'gold')
+      if (!isGold) return
       sprite.destroy()
       const cur = (this.registry.get('gold') as number) || 0
       this.registry.set('gold', cur + 1)
@@ -189,8 +194,8 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.powerupGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
       sprite.destroy()
-      this.applyPowerupReward()
-      this.registry.set('toast', 'Power-up applied')
+      const label = this.applyPowerupReward()
+      if (label) this.registry.set('toast', `Power-up: ${label}`)
     })
 
     // Player <-> enemy collision damage
@@ -296,7 +301,11 @@ export default class GameScene extends Phaser.Scene {
         const x = camCenter.x + Math.cos(angle) * radius
         const y = camCenter.y + Math.sin(angle) * radius
         const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
-        if (p) { p.setActive(true); p.setVisible(true) }
+        if (p) {
+          p.setActive(true); p.setVisible(true)
+          // visual distinction for health (no tint so white cross stays white)
+          this.tweens.add({ targets: p, scale: 1.15, yoyo: true, duration: 500, repeat: -1, ease: 'Sine.easeInOut' })
+        }
       }
     }
     // Update magnetization/despawn for pickups
@@ -676,11 +685,17 @@ export default class GameScene extends Phaser.Scene {
 
     // Handle laser spiral independently so it fires even when blaster cooldown is active
     const inv2 = (this.registry.get('inv') as InventoryState) || createInventory()
-    const hasLaser = inv2.weapons.some((w) => w.key === 'laser')
-    const hasBeamLaser = inv2.weapons.some((w) => w.key === 'beam-laser')
+    const wLaser = inv2.weapons.find((w) => w.key === 'laser')
+    const wBeam = inv2.weapons.find((w) => w.key === 'beam-laser')
+    const hasLaser = !!wLaser
+    const hasBeamLaser = !!wBeam
     if (this.player && (hasLaser || hasBeamLaser)) {
-      const spinSpeed = hasBeamLaser ? 260 : 190
-      const rate = this.fireRate * (hasBeamLaser ? 1.6 : 1.2)
+      const lvl = (wBeam?.level ?? wLaser?.level ?? 1)
+      // Level-scaled spin speed and fire rate (slow at low levels, faster later)
+      const spinBase = 140 + 25 * (lvl - 1)
+      const spinSpeed = spinBase * (hasBeamLaser ? 1.15 : 1)
+      const baseRate = 0.5 + 0.35 * (lvl - 1) // beams per second before global modifiers
+      const rate = baseRate * (this.fireRate / 1.2) * (hasBeamLaser ? 1.2 : 1)
       this.laserAngle = (this.laserAngle + spinSpeed * dt) % 360
       this.laserBeamAccum += dt
       if (this.laserBeamAccum >= 1 / Math.max(0.1, rate)) {
@@ -690,11 +705,20 @@ export default class GameScene extends Phaser.Scene {
         const ox = this.player.x + Math.cos(rad) * 14
         const oy = this.player.y + Math.sin(rad) * 14
         const len = hasBeamLaser ? 140 : 105
-        this.spawnBeam(ox, oy, a, len)
+        const thickness = (hasBeamLaser ? 6 : 4) + (lvl - 1) * (hasBeamLaser ? 2 : 1.5)
+        this.spawnBeam(ox, oy, a, len, thickness)
+        this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.bulletDamage * (hasBeamLaser ? 0.9 : 0.6)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
         if (shot) {
           shot.enableBody(true, ox, oy, true, true)
-          this.time.delayedCall(100, () => shot.active && shot.disableBody(true, true))
+          shot.setDepth(5)
+          shot.body?.setSize(2, 2, true)
+          shot.setCircle(1, 0, 0)
+          const vs = 220
+          const vrad = Phaser.Math.DegToRad(a)
+          shot.setVelocity(Math.cos(vrad) * vs, Math.sin(vrad) * vs)
+          ;(shot as any).damage = Math.max(1, Math.floor(this.bulletDamage * 0.6))
+          this.time.delayedCall(300, () => shot.active && shot.disableBody(true, true))
         }
       }
     }
@@ -755,11 +779,13 @@ export default class GameScene extends Phaser.Scene {
     o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(o as any).damage = this.bulletDamage
     ;(o as any).orb = true
+    ;(o as any).exploded = false
     this.time.delayedCall(800, () => this.explodeOrb(o))
   }
 
   private explodeOrb(o: Phaser.Physics.Arcade.Sprite) {
-    if (!o.active) return
+    if ((o as any).exploded) return
+    ;(o as any).exploded = true
     const radius = 28
     const cx = o.x, cy = o.y
     this.showExplosion(cx, cy, radius)
@@ -770,6 +796,7 @@ export default class GameScene extends Phaser.Scene {
       if (dx * dx + dy * dy <= radius * radius) {
         const hp = ((e as any).hp ?? 2) - Math.max(1, Math.floor(this.bulletDamage * 1.2))
         ;(e as any).hp = hp
+        this.showHitSpark(e.x, e.y)
         if (hp <= 0) {
           const isBoss = !!(e as any).isBoss
           e.disableBody(true, true)
@@ -783,11 +810,63 @@ export default class GameScene extends Phaser.Scene {
     o.disableBody(true, true)
   }
 
-  private spawnBeam(x: number, y: number, angleDeg: number, length: number) {
+  private spawnBeam(x: number, y: number, angleDeg: number, length: number, thickness: number) {
     const img = this.add.image(x, y, 'beam-tex').setOrigin(0, 0.5).setDepth(900)
     img.rotation = Phaser.Math.DegToRad(angleDeg)
-    img.setScale(length / 8, 1.6)
+    // scale X stretches the beam texture; scale Y controls visual thickness
+    img.setScale(length / 8, Math.max(1, thickness / 3))
     this.tweens.add({ targets: img, alpha: 0, duration: 120, onComplete: () => img.destroy() })
+  }
+
+  private applyBeamDamage(x: number, y: number, angleDeg: number, length: number, dmg: number, thickness: number) {
+    const enemies = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    const rad = Phaser.Math.DegToRad(angleDeg)
+    const dirx = Math.cos(rad)
+    const diry = Math.sin(rad)
+    thickness = Math.max(4, thickness)
+    // Draw corridor for the beam hitbox (always visible briefly)
+    const g = this.add.graphics().setDepth(999)
+    g.fillStyle(0x00ffff, 0.15)
+    const nx = -diry, ny = dirx
+    const hx = nx * thickness
+    const hy = ny * thickness
+    g.beginPath()
+    g.moveTo(x + hx, y + hy)
+    g.lineTo(x - hx, y - hy)
+    g.lineTo(x - hx + dirx * length, y - hy + diry * length)
+    g.lineTo(x + hx + dirx * length, y + hy + diry * length)
+    g.closePath()
+    g.fillPath()
+    this.tweens.add({ targets: g, alpha: 0, duration: 150, onComplete: () => g.destroy() })
+    for (const e of enemies) {
+      if (!e || !e.active) continue
+      const vx = e.x - x
+      const vy = e.y - y
+      const t = vx * dirx + vy * diry
+      if (t < 0 || t > length) continue
+      const px = x + dirx * t
+      const py = y + diry * t
+      const dx = e.x - px
+      const dy = e.y - py
+      if (dx * dx + dy * dy <= thickness * thickness) {
+        const hp = ((e as any).hp ?? 2) - Math.max(1, Math.floor(dmg))
+        ;(e as any).hp = hp
+        this.showHitSpark(e.x, e.y)
+        console.log('[LaserHit]', { x: e.x, y: e.y, hp })
+        const m = this.add.rectangle(e.x, e.y, 3, 3, 0x00ffff, 0.9).setDepth(1000)
+        this.tweens.add({ targets: m, alpha: 0, duration: 250, onComplete: () => m.destroy() })
+        if (hp <= 0) {
+          const isBoss = !!(e as any).isBoss
+          e.disableBody(true, true)
+          if (!isBoss) {
+            if (Math.random() < 0.8) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
+            if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+          }
+        } else if ((e as any).isBoss) {
+          this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
+        }
+      }
+    }
   }
 
   private showExplosion(x: number, y: number, radius: number) {
@@ -795,6 +874,11 @@ export default class GameScene extends Phaser.Scene {
     const scale = Math.max(0.5, radius / 16)
     ex.setScale(scale)
     this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
+  }
+
+  private showHitSpark(x: number, y: number) {
+    const s = this.add.rectangle(x, y, 3, 3, 0xffffff, 1).setDepth(900)
+    this.tweens.add({ targets: s, alpha: 0, duration: 120, onComplete: () => s.destroy() })
   }
 
   private showTelegraphLine(x1: number, y1: number, x2: number, y2: number, durationMs: number) {
@@ -825,9 +909,16 @@ export default class GameScene extends Phaser.Scene {
     const b = bullet as Phaser.Physics.Arcade.Sprite
     const e = enemyObj as Phaser.Physics.Arcade.Sprite
     if ((b as any).enemyBullet) return
+    // If an orb touches an enemy, trigger explosion immediately
+    if ((b as any).orb) {
+      this.explodeOrb(b)
+      return
+    }
     const damage = (b as any).damage ?? 1
     const hp = ((e as any).hp ?? 2) - damage
     ;(e as any).hp = hp
+    // Hit feedback (applies to blaster, laser shot, missiles, etc.)
+    this.showHitSpark(e.x, e.y)
     b.disableBody(true, true)
     // Missile impact explosion
       if ((b as any).missile) {
@@ -841,17 +932,24 @@ export default class GameScene extends Phaser.Scene {
         const r = Math.random()
         if (r < 0.15) {
           const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
-          if (p) { p.setActive(true); p.setVisible(true) }
+          if (p) {
+            p.setActive(true); p.setVisible(true)
+            // visual distinction for power-ups
+            p.setTint(0x22ddaa)
+            p.setScale(1)
+            this.tweens.add({ targets: p, y: p.y - 2, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
+            this.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })
+          }
         } else if (r < 0.65) {
           const bonus = Phaser.Math.FloatBetween(0.1, 0.4)
-          const count = 1 + (Math.random() < bonus ? 1 : 0)
+          const count = 1 + (Math.random() < Math.min(0.9, 0.4 + bonus) ? 1 : 0)
           for (let i = 0; i < count; i++) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
         } else {
           this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
         }
       } else {
         // Non-elite: standard XP/gold small chances
-        if (Math.random() < 0.65) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
+        if (Math.random() < 0.8) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
         if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
       }
       const isBoss = !!(e as any).isBoss
@@ -1435,7 +1533,7 @@ export default class GameScene extends Phaser.Scene {
     gfx.destroy()
   }
 
-  private applyPowerupReward() {
+  private applyPowerupReward(): string | null {
     const inv = (this.registry.get('inv') as InventoryState) || createInventory()
     // Choose a random owned weapon or accessory
     const owned: { kind: 'w' | 'a'; key: string; level: number }[] = []
@@ -1444,7 +1542,7 @@ export default class GameScene extends Phaser.Scene {
     if (owned.length === 0) {
       // fallback: give gold
       this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 25)
-      return
+      return 'Gold +25'
     }
     const pick = Phaser.Utils.Array.GetRandom(owned)
     const isMax = pick.kind === 'w' ? pick.level >= MAX_WEAPON_LEVEL : pick.level >= MAX_ACCESSORY_LEVEL
@@ -1452,11 +1550,12 @@ export default class GameScene extends Phaser.Scene {
       // 50 gold or full heal
       if (Math.random() < 0.5) {
         this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 50)
+        return 'Gold +50'
       } else {
         this.hpCur = this.hpMax
         this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+        return 'Full Heal'
       }
-      return
     }
     if (pick.kind === 'w') {
       // level up weapon
@@ -1465,15 +1564,16 @@ export default class GameScene extends Phaser.Scene {
       this.registry.set('inv', inv)
       this.registry.set('inv-weapons', describeWeapons(inv))
       this.recomputeEffectiveStats()
-      this.registry.set('toast', `Power-up: ${pick.key} Lv${w?.level}`)
+      return `${pick.key} Lv${w?.level}`
     } else {
       const a = inv.accessories.find((x) => x.key === pick.key)
       if (a) a.level = Math.min(MAX_ACCESSORY_LEVEL, a.level + 1)
       this.registry.set('inv', inv)
       this.registry.set('inv-accessories', describeAccessories(inv))
       this.recomputeEffectiveStats()
-      this.registry.set('toast', `Power-up: ${pick.key} Lv${a?.level}`)
+      return `${pick.key} Lv${a?.level}`
     }
+    return null
   }
 
   private createHealthTexture(key: string) {
@@ -1524,7 +1624,9 @@ export default class GameScene extends Phaser.Scene {
       this.registry.set('xp', 0)
       this.xpToNext = Math.floor(this.xpToNext * 1.5 + 3)
       this.tryEvolveWeapons()
+      // Pause gameplay and freeze level timer
       this.scene.pause()
+      this.time.timeScale = 0
       // Build 3-of-N choices
       const pool = [
         { key: 'speed', label: 'Thrusters +10% speed', color: '#66ccff' },
@@ -1579,6 +1681,8 @@ export default class GameScene extends Phaser.Scene {
         }
         this.recomputeEffectiveStats()
         this.game.events.off('levelup-apply', applyOnce as any)
+        // Resume gameplay and unfreeze level timer
+        this.time.timeScale = 1
         this.scene.resume()
       }
       this.game.events.on('levelup-apply', applyOnce as any)

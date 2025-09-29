@@ -40,8 +40,31 @@ export default class PreloadScene extends Phaser.Scene {
     makeRect('player-square',8,8,0xffffff)
     makeIcon('xp-gem', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(3,0,6,3,0,3); g.fillTriangle(0,3,6,3,3,6)}, 6,6)
     makeIcon('gold-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(3,3,3)}, 6,6)
-    makeRect('health-pack',7,7,0x33ff66)
-    makeRect('powerup-chip',8,8,0x99ffcc)
+    // Distinct health: red background with white cross
+    makeIcon('health-pack', (g)=>{
+      g.clear()
+      // red background
+      g.fillStyle(0xff3344,1)
+      g.fillRect(0,0,7,7)
+      // white cross
+      g.fillStyle(0xffffff,1)
+      g.fillRect(3,1,1,5)
+      g.fillRect(1,3,5,1)
+    }, 7,7)
+    // Distinct power-up: neon chip with legs and center glyph
+    makeIcon('powerup-chip', (g)=>{
+      g.clear()
+      // body
+      g.fillStyle(0x14443a,1); g.fillRect(1,1,6,6)
+      // legs
+      g.fillStyle(0x22ddaa,1)
+      g.fillRect(0,2,1,1); g.fillRect(0,4,1,1); g.fillRect(7,2,1,1); g.fillRect(7,4,1,1)
+      g.fillRect(2,0,1,1); g.fillRect(4,0,1,1); g.fillRect(2,7,1,1); g.fillRect(4,7,1,1)
+      // center glyph
+      g.fillRect(2,3,3,1); g.fillRect(3,2,1,3)
+      // outline glow hint
+      g.lineStyle(1,0x22ddaa,1); g.strokeRect(1.5,1.5,5,5)
+    }, 8,8)
   }
 
   create() {

@@ -38,12 +38,15 @@ export default class ShopScene extends Phaser.Scene {
       accessory: (level: number) => 25 + level * 15, // 25,40,55,70,85
       healFull: 60,
       reroll: 25,
+      dmg: (n: number) => 40 + n * 10,
+      rate: (n: number) => 35 + n * 10,
+      healSmall: (n: number) => 20 + n * 5,
     }
 
     const button = (x: number, y: number, label: string, onClick: () => void, tooltip?: string, iconKey?: string) => {
-      const r = this.add.rectangle(x, y, 160, 16, 0x222233, 1).setOrigin(0,0).setInteractive({ useHandCursor: true })
+      const r = this.add.rectangle(x, y, 180, 16, 0x222233, 1).setOrigin(0,0).setInteractive({ useHandCursor: true })
       const t = this.add.text(x + 20, y + 3, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-      if (iconKey) this.add.rectangle(x + 8, y + 8, 8, 8, 0x9999cc, 1).setOrigin(0.5) // placeholder icon block; replace with preloaded sprites
+      if (iconKey && this.textures.exists(iconKey)) this.add.image(x + 8, y + 8, iconKey).setOrigin(0.5)
       let tip: Phaser.GameObjects.Text | null = null
       r.on('pointerover', () => r.setFillStyle(0x333355, 1))
       r.on('pointerout', () => r.setFillStyle(0x222233, 1))
@@ -82,8 +85,44 @@ export default class ShopScene extends Phaser.Scene {
     }
     offerUpgrades()
 
+    // Additional upgrade sinks (temporary run boosts)
+    let dmgBuys = 0
+    let rateBuys = 0
+    let healSmallBuys = 0
+    const game = this.scene.get('Game') as any
+    let ySink = rowYStart + 80
+    button(colXLeft, ySink, `+1 Damage (${price.dmg(dmgBuys)})`, () => {
+      const cost = price.dmg(dmgBuys)
+      if (getGold() < cost || !game) return
+      setGold(getGold() - cost)
+      game.bonusDamage = Math.min(99, (game.bonusDamage || 0) + 1)
+      game.recomputeEffectiveStats && game.recomputeEffectiveStats()
+      dmgBuys++
+    }, 'Increase base bullet damage for this run', 'icon-weapon')
+    ySink += 20
+    button(colXLeft, ySink, `+10% Fire Rate (${price.rate(rateBuys)})`, () => {
+      const cost = price.rate(rateBuys)
+      if (getGold() < cost || !game) return
+      setGold(getGold() - cost)
+      game.bonusFireRateMul = Math.min(3, (game.bonusFireRateMul || 1) * 1.1)
+      game.recomputeEffectiveStats && game.recomputeEffectiveStats()
+      rateBuys++
+    }, 'Increase blaster/beam firing speed for this run', 'icon-weapon-laser')
+    ySink += 20
+    button(colXLeft, ySink, `Heal +3 (${price.healSmall(healSmallBuys)})`, () => {
+      const cost = price.healSmall(healSmallBuys)
+      if (getGold() < cost || !game) return
+      setGold(getGold() - cost)
+      const hp = this.registry.get('hp') as { cur: number; max: number } | undefined
+      const cur = hp?.cur ?? (game.hpCur || 0)
+      const max = hp?.max ?? (game.hpMax || 10)
+      game.hpCur = Math.min(max, cur + 3)
+      this.registry.set('hp', { cur: game.hpCur, max })
+      healSmallBuys++
+    }, 'Small heal now', 'icon-acc')
+
     // Utility: Full heal and reroll
-    button(colXRight - 140, rowYStart, `Full Heal (${price.healFull})`, () => {
+    button(colXRight - 160, rowYStart, `Full Heal (${price.healFull})`, () => {
       if (getGold() < price.healFull) return
       setGold(getGold() - price.healFull)
       const game = this.scene.get('Game') as any
@@ -92,7 +131,7 @@ export default class ShopScene extends Phaser.Scene {
         this.registry.set('hp', { cur: game.hpCur, max: game.hpMax })
       }
     })
-    button(colXRight - 140, rowYStart + 22, `Reroll (${price.reroll})`, () => {
+    button(colXRight - 160, rowYStart + 22, `Reroll (${price.reroll})`, () => {
       if (getGold() < price.reroll) return
       setGold(getGold() - price.reroll)
       this.scene.restart()

@@ -54,6 +54,26 @@ export default class LevelUpScene extends Phaser.Scene {
       t.setInteractive({ useHandCursor: true })
       t.on('pointerover', () => t.setStyle({ backgroundColor: '#111111' }))
       t.on('pointerout', () => t.setStyle({ backgroundColor: '#000000' }))
+      // Basic tooltip explaining item
+      let tip: Phaser.GameObjects.Text | null = null
+      const explain = () => {
+        if (tip) return
+        const desc =
+          c.key === 'w-laser' ? 'Laser: spinning beam, ticks damage around you' :
+          c.key === 'w-missiles' ? 'Missiles: homing, high impact' :
+          c.key === 'w-orb' ? 'Orb: detonates for AoE blast' :
+          c.key === 'acc-thrusters' ? 'Thrusters: move faster' :
+          c.key === 'acc-magnet-core' ? 'Magnet: larger pickup radius' :
+          c.key === 'acc-ammo-loader' ? 'Ammo Loader: higher fire rate' :
+          c.key === 'acc-power-cell' ? 'Power Cell: more damage' :
+          c.key === 'acc-splitter' ? 'Splitter: more projectiles' :
+          c.key === 'gold' ? 'Gain 5 gold now' :
+          'Upgrade'
+        tip = this.add.text(width / 2, y + 8, desc, { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc', backgroundColor: '#000000', padding: { x: 3, y: 1 } }).setOrigin(0.5, 0)
+      }
+      const clearTip = () => { tip?.destroy(); tip = null }
+      t.on('pointerover', explain)
+      t.on('pointerout', clearTip)
       t.on('pointerdown', () => this.choose(c.key))
     })
   }
