@@ -28,6 +28,11 @@ export default class GameScene extends Phaser.Scene {
   private bgMid?: Phaser.GameObjects.TileSprite
   private bgNear?: Phaser.GameObjects.TileSprite
   private bgSun?: Phaser.GameObjects.Image
+  // Asteroid obstacles (Level 2)
+  private asteroidStatics?: Phaser.Physics.Arcade.Group
+  private asteroidMovers?: Phaser.Physics.Arcade.Group
+  private asteroidSpawnAcc = 0
+  private asteroidMoveSpawnAcc = 0
 
   private enemies!: Phaser.Physics.Arcade.Group
   private enemyTextureKey = 'enemy-square'
@@ -55,7 +60,7 @@ export default class GameScene extends Phaser.Scene {
   private orbGroup!: Phaser.Physics.Arcade.Group
   private bulletTextureKey = 'bullet'
   private fireCooldown = 0
-  private fireRate = 1.2 // shots per second (easier early game)
+  private fireRate = 0.8 // slower base; upgrades increase this
   private bulletDamage = 1
   private multishot = 1
   private inlineExtraProjectiles = 0
@@ -297,6 +302,35 @@ export default class GameScene extends Phaser.Scene {
 
     this.updateEnemies(camCenter.x, camCenter.y)
 
+    // Level 2 asteroid obstacles: sparse statics and movers
+    if ((runState.state?.level ?? 1) === 2) {
+      this.ensureAsteroidObstacles()
+      this.asteroidSpawnAcc += dt
+      this.asteroidMoveSpawnAcc += dt
+      // statics: ~1 every 2.5s capped by group size
+      if (this.asteroidSpawnAcc > 2.5 && (this.asteroidStatics?.countActive(true) || 0) < 32) {
+        this.asteroidSpawnAcc = 0
+        this.spawnAsteroidStatic(camCenter.x, camCenter.y)
+      }
+      // movers: ~1 every 4s capped
+      if (this.asteroidMoveSpawnAcc > 4 && (this.asteroidMovers?.countActive(true) || 0) < 16) {
+        this.asteroidMoveSpawnAcc = 0
+        this.spawnAsteroidMover(camCenter.x, camCenter.y)
+      }
+      // cull far movers/statics
+      const maxR = Math.hypot(this.scale.width, this.scale.height) * 1.8
+      const cull = (grp?: Phaser.Physics.Arcade.Group) => {
+        if (!grp) return
+        const arr = grp.getChildren() as Phaser.Physics.Arcade.Sprite[]
+        for (const a of arr) {
+          const dx = a.x - camCenter.x, dy = a.y - camCenter.y
+          if (dx * dx + dy * dy > maxR * maxR) a.disableBody(true, true)
+        }
+      }
+      cull(this.asteroidStatics)
+      cull(this.asteroidMovers)
+    }
+
     // Ambient health spawn (rare)
     if (!this.bossActive) {
       const healthPerSec = 0.02
@@ -412,6 +446,36 @@ export default class GameScene extends Phaser.Scene {
     tex?.refresh()
   }
 
+  private createAsteroidFieldTexture(key: string, size: number, count: number) {
+    if (this.textures.exists(key)) return
+    const tex = this.textures.createCanvas(key, size, size)
+    const c = tex?.getContext()
+    if (!c) return
+    c.fillStyle = '#000'
+    c.fillRect(0, 0, size, size)
+    for (let i = 0; i < count; i++) {
+      const x = Math.random() * size
+      const y = Math.random() * size
+      const r = 3 + Math.random() * 10
+      const tilt = Math.random() * Math.PI
+      const rx = r * (0.6 + Math.random() * 0.8)
+      const ry = r
+      c.save()
+      c.translate(x, y)
+      c.rotate(tilt)
+      c.fillStyle = '#666a72'
+      c.beginPath()
+      c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = '#8a9099'
+      c.beginPath()
+      c.arc(-rx * 0.3, -ry * 0.2, Math.max(1, rx * 0.3), 0, Math.PI * 2)
+      c.fill()
+      c.restore()
+    }
+    tex?.refresh()
+  }
+
   private createPlanetTile(key: string) {
     if (this.textures.exists(key)) return
     const s = 256
@@ -502,10 +566,13 @@ export default class GameScene extends Phaser.Scene {
       return
     }
     if (level === 2) {
-      this.createAsteroidTile('asteroid-tile')
-      this.bgFar = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'asteroid-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-      this.bgMid = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'asteroid-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-      this.bgNear = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'asteroid-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
+      // Parallax asteroid field akin to level 1 starfield
+      this.createAsteroidFieldTexture('asteroids-far', 512, 60)
+      this.createAsteroidFieldTexture('asteroids-mid', 512, 100)
+      this.createAsteroidFieldTexture('asteroids-near', 512, 160)
+      this.bgFar = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-far').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
+      this.bgMid = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-mid').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
+      this.bgNear = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-near').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
       return
     }
     if (level === 3) {
@@ -629,8 +696,8 @@ export default class GameScene extends Phaser.Scene {
       const muzzle = 6
       const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
       for (let i = 0; i <= inlineCount; i++) {
-        const back = i * 6 // 6px behind per extra for clearer separation
-        const speedScale = 1 - Math.min(0.6, i * 0.15) // each trailing shot is slower (down to -60%)
+        const back = i * 8 // 8px behind per extra for clearer separation
+        const speedScale = 1 - Math.min(0.6, i * 0.12) // each trailing shot is slightly slower
         const ox = this.player.x + Math.cos(baseRad) * (muzzle - back)
         const oy = this.player.y + Math.sin(baseRad) * (muzzle - back)
         this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
@@ -1513,6 +1580,87 @@ export default class GameScene extends Phaser.Scene {
       const distCam = Math.hypot(dcx, dcy)
       if (distCam > despawnRadius * 1.5) enemy.disableBody(true, true)
     }
+  }
+
+  private ensureAsteroidObstacles() {
+    if (!this.asteroidStatics) {
+      this.asteroidStatics = this.physics.add.group({ immovable: true, allowGravity: false, maxSize: 40 })
+      if (this.player) this.physics.add.collider(this.player, this.asteroidStatics, (_p, a) => this.onAsteroidHit(_p as any, a as any))
+      this.physics.add.collider(this.enemies, this.asteroidStatics, (_e, a) => this.onAsteroidHit(_e as any, a as any))
+    }
+    if (!this.asteroidMovers) {
+      this.asteroidMovers = this.physics.add.group({ allowGravity: false, maxSize: 20 })
+      if (this.player) this.physics.add.collider(this.player, this.asteroidMovers, (_p, a) => this.onAsteroidHit(_p as any, a as any))
+      this.physics.add.collider(this.enemies, this.asteroidMovers, (_e, a) => this.onAsteroidHit(_e as any, a as any))
+    }
+    if (!this.textures.exists('asteroid-rock')) {
+      const g = this.add.graphics(); g.fillStyle(0x7a7f88, 1); g.fillCircle(8, 8, 8); g.fillStyle(0x9aa0aa, 1); g.fillCircle(5, 6, 3); g.generateTexture('asteroid-rock', 16, 16); g.destroy()
+    }
+  }
+
+  private spawnAsteroidStatic(cx: number, cy: number) {
+    this.ensureAsteroidObstacles()
+    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
+    const inner = viewRadius * 0.9
+    const outer = inner + 120
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
+    const radius = Phaser.Math.FloatBetween(inner, outer)
+    const x = cx + Math.cos(angle) * radius
+    const y = cy + Math.sin(angle) * radius
+    const a = this.asteroidStatics!.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
+    if (!a) return
+    a.enableBody(true, x, y, true, true)
+    a.setCircle(7, 1, 1)
+    a.setImmovable(true)
+    ;(a as any).isAsteroid = true
+    ;(a as any).damageCooldownUntil = 0
+  }
+
+  private spawnAsteroidMover(cx: number, cy: number) {
+    this.ensureAsteroidObstacles()
+    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
+    const inner = viewRadius * 0.9
+    const outer = inner + 140
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
+    const radius = Phaser.Math.FloatBetween(inner, outer)
+    const x = cx + Math.cos(angle) * radius
+    const y = cy + Math.sin(angle) * radius
+    const a = this.asteroidMovers!.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
+    if (!a) return
+    a.enableBody(true, x, y, true, true)
+    a.setCircle(7, 1, 1)
+    ;(a as any).isAsteroid = true
+    ;(a as any).damageCooldownUntil = 0
+    const toCenter = Math.atan2(cy - y, cx - x)
+    const speed = Phaser.Math.Between(12, 28)
+    a.setVelocity(Math.cos(toCenter) * speed, Math.sin(toCenter) * speed)
+    a.setAngularVelocity(Phaser.Math.Between(-40, 40))
+  }
+
+  private onAsteroidHit(objA: Phaser.Physics.Arcade.Sprite, objB: Phaser.Physics.Arcade.Sprite) {
+    const now = this.time.now
+    const hurt = (t: Phaser.Physics.Arcade.Sprite, amount: number, src: Phaser.Physics.Arcade.Sprite) => {
+      if (t === this.player) {
+        if (this.hurtCooldown > 0) return
+        this.hurtCooldown = 0.6
+        this.hpCur = Math.max(0, this.hpCur - amount)
+        this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+        const ang = Math.atan2(this.player!.y - src.y, this.player!.x - src.x)
+        this.player!.setVelocity(Math.cos(ang) * 120, Math.sin(ang) * 120)
+        if (this.hpCur <= 0) { this.scene.stop('HUD'); this.scene.start('GameOver') }
+      } else {
+        ;(t as any).hp = Math.max(0, ((t as any).hp ?? 2) - amount)
+        if ((t as any).hp <= 0) t.disableBody(true, true)
+      }
+    }
+    const tryDamage = (rock: Phaser.Physics.Arcade.Sprite, target: Phaser.Physics.Arcade.Sprite) => {
+      const cd = (rock as any).damageCooldownUntil as number
+      if (now < cd) return
+      ;(rock as any).damageCooldownUntil = now + 500
+      hurt(target, 1, rock)
+    }
+    if ((objA as any).isAsteroid) tryDamage(objA, objB)
+    else if ((objB as any).isAsteroid) tryDamage(objB, objA)
   }
 
   private createXPGemTexture(key: string) {

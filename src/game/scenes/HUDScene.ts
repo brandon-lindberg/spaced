@@ -97,7 +97,7 @@ export default class HUDScene extends Phaser.Scene {
       }
       // accessories row(s)
       if (accStr && accStr.trim() !== '—' && accStr.trim() !== '') {
-        x = 2; y += 4
+        x = 2; y += 8
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
           const lvl = match ? parseInt(match[2], 10) : 1
