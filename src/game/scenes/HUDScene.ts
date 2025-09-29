@@ -2,14 +2,10 @@ import Phaser from 'phaser'
 import { getOptions } from '../systems/options'
 
 export default class HUDScene extends Phaser.Scene {
-  private heartIcon?: Phaser.GameObjects.Image
   private hpText?: Phaser.GameObjects.Text
-  private coinIcon?: Phaser.GameObjects.Image
   private goldText?: Phaser.GameObjects.Text
-  private xpIcon?: Phaser.GameObjects.Image
   private xpText?: Phaser.GameObjects.Text
   private lvlText?: Phaser.GameObjects.Text
-  private timerIcon?: Phaser.GameObjects.Image
   private timeText?: Phaser.GameObjects.Text
   private bossBar?: Phaser.GameObjects.Graphics
   private bossLabel?: Phaser.GameObjects.Text
@@ -35,17 +31,17 @@ export default class HUDScene extends Phaser.Scene {
     ensureIcon('icon-timer', (g) => { g.clear(); g.lineStyle(2, 0xffffff, 1); g.strokeCircle(5, 5, 4); g.lineBetween(5, 5, 5, 2); g.lineBetween(5, 5, 8, 5) })
 
     // UI elements (compact)
-    this.heartIcon = this.add.image(6, 6, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.add.image(6, 6, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
     this.hpText = this.add.text(12, 2, '0/0', { fontFamily: 'monospace', fontSize: '8px', color: '#ffdddd' }).setScrollFactor(0).setDepth(1500)
 
-    this.coinIcon = this.add.image(6, 16, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.add.image(6, 16, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
     this.goldText = this.add.text(12, 12, '0', { fontFamily: 'monospace', fontSize: '8px', color: '#ffdd66' }).setScrollFactor(0).setDepth(1500)
 
-    this.xpIcon = this.add.image(6, 26, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.add.image(6, 26, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
     this.xpText = this.add.text(12, 22, '0', { fontFamily: 'monospace', fontSize: '8px', color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
     this.lvlText = this.add.text(40, 2, 'Lv 1', { fontFamily: 'monospace', fontSize: '8px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
-    this.timerIcon = this.add.image(this.scale.width - 40, 6, 'icon-timer').setOrigin(0, 0).setScrollFactor(0).setDepth(1500)
+    this.add.image(this.scale.width - 40, 6, 'icon-timer').setOrigin(0, 0).setScrollFactor(0).setDepth(1500)
     this.timeText = this.add.text(this.scale.width - 28, 2, '00:00', { fontFamily: 'monospace', fontSize: '8px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(1500)
@@ -97,7 +93,7 @@ export default class HUDScene extends Phaser.Scene {
       }
       // accessories row(s)
       if (accStr && accStr.trim() !== '—' && accStr.trim() !== '') {
-        x = 2; y += 8
+        x = 2; y += 16
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
           const lvl = match ? parseInt(match[2], 10) : 1
@@ -206,6 +202,10 @@ export default class HUDScene extends Phaser.Scene {
         fpsText.setText(`FPS: ${fps}`)
         fpsText.setVisible(!!getOptions().showFPS)
       },
+    })
+    // React to options updates from PauseScene
+    this.game.events.on('options-updated', () => {
+      fpsText.setVisible(!!getOptions().showFPS)
     })
   }
 }

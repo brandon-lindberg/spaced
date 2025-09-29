@@ -7,6 +7,8 @@ export default class PauseScene extends Phaser.Scene {
   }
 
   create() {
+    // Notify game that pause started (for timer adjustments)
+    this.game.events.emit('pause-opened')
     const { width, height } = this.scale
     const text = this.add.text(width / 2, height / 2 - 20, 'Paused', {
       fontFamily: 'monospace',
@@ -22,7 +24,7 @@ export default class PauseScene extends Phaser.Scene {
         fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x: 4, y: 2 }
       }).setOrigin(0.5)
       t.setInteractive({ useHandCursor: true })
-      const toggle = () => { setVal(!getVal()); t.setText(`${label}: ${getVal() ? 'ON' : 'OFF'}`) }
+      const toggle = () => { setVal(!getVal()); t.setText(`${label}: ${getVal() ? 'ON' : 'OFF'}`); this.game.events.emit('options-updated') }
       t.on('pointerdown', toggle)
     }
     mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -2)
@@ -35,11 +37,11 @@ export default class PauseScene extends Phaser.Scene {
       const nextSfx = Math.max(0, Math.min(1, o.sfxVolume + 0.1))
       setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx })
       vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`)
+      this.game.events.emit('options-updated')
     })
-    this.input.keyboard?.once('keydown-P', () => {
-      this.scene.stop()
-      this.scene.resume('Game')
-    })
+    const close = () => { this.game.events.emit('pause-closed'); this.scene.stop(); this.scene.resume('Game') }
+    this.input.keyboard?.once('keydown-P', close)
+    this.input.keyboard?.once('keydown-ESC', close)
   }
 }
 

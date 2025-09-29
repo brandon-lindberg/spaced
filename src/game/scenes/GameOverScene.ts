@@ -24,6 +24,8 @@ export default class GameOverScene extends Phaser.Scene {
     this.input.removeAllListeners()
     retryBtn.on('pointerdown', () => this.retry())
     titleBtn.on('pointerdown', () => this.toTitle())
+    // Explanatory note placed below buttons so it isn't obscured
+    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: HP persists; everything else resets.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
   }
 
   private retry() {
@@ -34,14 +36,17 @@ export default class GameOverScene extends Phaser.Scene {
     this.scene.stop('Shop')
     this.scene.stop('Cutscene')
     this.scene.stop('Victory')
-    // Prepare new run starting from current level
-    const currentLevel = runState.state?.level ?? 1
+    // Preserve HP across retry, reset everything else and start from level 1
+    const hp = (this.registry.get('hp') as { cur: number; max: number } | undefined) ?? { cur: 10, max: 10 }
     runState.newRun()
-    runState.startLevel(currentLevel, this.time.now)
-    // Reset run-specific registry data
+    runState.startLevel(1, this.time.now)
     this.registry.set('gold', 0)
     this.registry.set('xp', 0)
     this.registry.set('inv', createInventory())
+    this.registry.set('level', 1)
+    this.registry.set('boss-hp', null)
+    // restore HP state
+    this.registry.set('hp', { cur: Math.max(0, Math.min(hp.cur, hp.max)), max: hp.max })
     // Stop any existing Game scene
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()
@@ -64,6 +69,13 @@ export default class GameOverScene extends Phaser.Scene {
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()
     runState.newRun()
+    // Full reset including HP
+    this.registry.set('gold', 0)
+    this.registry.set('xp', 0)
+    this.registry.set('inv', createInventory())
+    this.registry.set('level', 1)
+    this.registry.set('boss-hp', null)
+    this.registry.set('hp', { cur: 10, max: 10 })
     // Transition on next tick
     this.time.delayedCall(0, () => {
       this.scene.start('Menu')
