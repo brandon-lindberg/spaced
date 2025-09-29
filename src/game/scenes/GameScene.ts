@@ -269,7 +269,7 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 
-  update(time: number, delta: number) {
+  update(_time: number, delta: number) {
     if (!this.player) return
     const speed = 80 * this.speedMultiplier
 
