@@ -7,6 +7,8 @@ export default class PauseScene extends Phaser.Scene {
   }
 
   create() {
+    // Notify game that pause started (for timer adjustments)
+    this.game.events.emit('pause-opened')
     const { width, height } = this.scale
     const text = this.add.text(width / 2, height / 2 - 20, 'Paused', {
       fontFamily: 'monospace',
@@ -37,7 +39,7 @@ export default class PauseScene extends Phaser.Scene {
       vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`)
       this.game.events.emit('options-updated')
     })
-    const close = () => { this.scene.stop(); this.scene.resume('Game') }
+    const close = () => { this.game.events.emit('pause-closed'); this.scene.stop(); this.scene.resume('Game') }
     this.input.keyboard?.once('keydown-P', close)
     this.input.keyboard?.once('keydown-ESC', close)
   }

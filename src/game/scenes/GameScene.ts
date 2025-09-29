@@ -53,6 +53,7 @@ export default class GameScene extends Phaser.Scene {
   private xpToNext = 3
   private magnetRadius = 16
   private speedMultiplier = 1
+  private remainingSec = 0
 
   // Basic weapon: Blaster
   private bullets!: Phaser.Physics.Arcade.Group
@@ -77,7 +78,6 @@ export default class GameScene extends Phaser.Scene {
   private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
   private laserBeamAccum = 0
-  private pauseStartMs: number | null = null
   // private laserTickCooldown = 0
 
   // Player health
@@ -147,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.enemies)
     const rs = runState.startLevel(runState.state?.level ?? 1, this.time.now)
     this.levelStartMs = rs?.levelStartMs ?? this.time.now
+    this.remainingSec = rs?.levelDurationSec ?? 900
 
     // Reset per-level state
     this.level = 1
@@ -251,13 +252,21 @@ export default class GameScene extends Phaser.Scene {
 
     // Pause wiring: ESC or P opens Pause
     const openPause = () => {
-      // Avoid stacking multiple Pause scenes
       if (this.scene.isPaused()) return
+      // Globally pause time and physics for this scene
+      this.time.timeScale = 0
+      this.physics.world.isPaused = true
       this.scene.launch('Pause')
       this.scene.pause()
     }
     this.input.keyboard?.on('keydown-ESC', openPause)
     this.input.keyboard?.on('keydown-P', openPause)
+
+    this.game.events.on('pause-closed', () => {
+      // Resume time and physics
+      this.time.timeScale = 1
+      this.physics.world.isPaused = false
+    })
   }
 
   update(time: number, delta: number) {
@@ -314,16 +323,10 @@ export default class GameScene extends Phaser.Scene {
     // Spawning logic: ring around camera
     const dt = delta / 1000
     this.updateDynamicQuality(dt)
-    const elapsedSec = (time - this.levelStartMs) / 1000
-    // If paused by LevelUp, keep timer frozen by shifting levelStartMs forward
-    if (this.scene.isPaused()) {
-      if (this.pauseStartMs == null) this.pauseStartMs = time
-    } else if (this.pauseStartMs != null) {
-      // Adjust start so elapsed ignores pause duration
-      const pausedDur = time - this.pauseStartMs
-      this.levelStartMs += pausedDur
-      this.pauseStartMs = null
-    }
+    // Decrement gameplay timer only while scene is active
+    this.remainingSec = Math.max(0, this.remainingSec - dt)
+    const total = (runState.state?.levelDurationSec ?? 900)
+    const elapsedSec = Math.max(0, total - this.remainingSec)
     // Spawn curve with waves: slow start then ramps, slight oscillation
     const wave = 0.6 + 0.4 * Math.sin(elapsedSec * 0.25)
     const spawnPerSecBase = Math.min(5, (0.3 + elapsedSec * 0.015) * wave)
@@ -390,9 +393,8 @@ export default class GameScene extends Phaser.Scene {
     this.updatePickups(camCenter.x, camCenter.y)
 
     // Level timer and victory
-    const remain = runState.getRemainingSec(time)
-    this.registry.set('time-left', remain)
-    if (remain <= 0) {
+    this.registry.set('time-left', Math.ceil(this.remainingSec))
+    if (this.remainingSec <= 0) {
       const level = runState.state?.level ?? 1
       if (level < 5) {
         if (!this.bossActive) {
@@ -1424,7 +1426,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Chance to spawn elite variant: boosted stats and distinct color.
     // Scale over level time and cap global ratio.
-    const remain = runState.getRemainingSec(this.time.now)
+    const remain = this.remainingSec
     const total = (runState.state?.levelDurationSec ?? 900)
     const progress = 1 - Math.max(0, Math.min(1, remain / Math.max(1, total)))
     if (!('eliteStats' in (this as any))) {
