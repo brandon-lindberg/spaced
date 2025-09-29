@@ -1393,6 +1393,10 @@ export default class GameScene extends Phaser.Scene {
     enemy.enableBody(true, x, y, true, true)
     enemy.setCircle(3, 1, 1)
     enemy.setCollideWorldBounds(false)
+    // Reset pooled flags so non-elites don't inherit elite state
+    ;(enemy as any).elite = false
+    ;(enemy as any).isElite = false
+    enemy.setScale(1)
 
     const elapsed = (this.time.now - this.levelStartMs) / 1000
     const touch = 1 + Math.floor(elapsed / 90)
