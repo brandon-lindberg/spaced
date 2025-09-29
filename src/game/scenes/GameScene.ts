@@ -60,7 +60,6 @@ export default class GameScene extends Phaser.Scene {
   private orbGroup!: Phaser.Physics.Arcade.Group
   private enemyBullets!: Phaser.Physics.Arcade.Group
   private bulletTextureKey = 'bullet'
-  private fireCooldown = 0
   private fireRate = 0.8 // slower base; upgrades increase this
   private bulletDamage = 1
   private multishot = 1
@@ -170,7 +169,6 @@ export default class GameScene extends Phaser.Scene {
     // Reset per-run firing bonuses and cooldowns
     this.inlineExtraProjectiles = 0
     this.weaponCooldowns = {}
-    this.fireCooldown = 0
     this.laserBeamAccum = 0
 
     // Pickups
@@ -250,6 +248,16 @@ export default class GameScene extends Phaser.Scene {
 
     // Gamepad setup
     this.input.gamepad?.once('connected', () => {})
+
+    // Pause wiring: ESC or P opens Pause
+    const openPause = () => {
+      // Avoid stacking multiple Pause scenes
+      if (this.scene.isPaused()) return
+      this.scene.launch('Pause')
+      this.scene.pause()
+    }
+    this.input.keyboard?.on('keydown-ESC', openPause)
+    this.input.keyboard?.on('keydown-P', openPause)
   }
 
   update(time: number, delta: number) {
@@ -448,31 +456,6 @@ export default class GameScene extends Phaser.Scene {
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`
       ctx.fill()
-    }
-    tex?.refresh()
-  }
-
-  private createAsteroidTile(key: string) {
-    if (this.textures.exists(key)) return
-    const s = 256
-    const tex = this.textures.createCanvas(key, s, s)
-    const c = tex?.getContext()
-    if (!c) return
-    c.fillStyle = '#0a0a15'
-    c.fillRect(0, 0, s, s)
-    const rocks = 18
-    for (let i = 0; i < rocks; i++) {
-      const x = Math.random() * s
-      const y = Math.random() * s
-      const r = 6 + Math.random() * 18
-      c.fillStyle = '#777777'
-      c.beginPath()
-      c.ellipse(x, y, r, r * (0.6 + Math.random() * 0.6), Math.random() * Math.PI, 0, Math.PI * 2)
-      c.fill()
-      c.fillStyle = '#999999'
-      c.beginPath()
-      c.arc(x - r * 0.3, y - r * 0.2, r * 0.3, 0, Math.PI * 2)
-      c.fill()
     }
     tex?.refresh()
   }
