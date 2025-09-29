@@ -58,6 +58,7 @@ export default class GameScene extends Phaser.Scene {
   private bullets!: Phaser.Physics.Arcade.Group
   private missileGroup!: Phaser.Physics.Arcade.Group
   private orbGroup!: Phaser.Physics.Arcade.Group
+  private enemyBullets!: Phaser.Physics.Arcade.Group
   private bulletTextureKey = 'bullet'
   private fireCooldown = 0
   private fireRate = 0.8 // slower base; upgrades increase this
@@ -73,10 +74,11 @@ export default class GameScene extends Phaser.Scene {
   private bonusMagnet = 0
   private bonusLevelsUsed = 0
   private readonly maxBonusLevels = 10
-  // reserved for per-weapon cooldowns (future use)
-  // private weaponCooldowns: Record<string, number> = {}
+  // Per-weapon cooldowns so weapons fire independently
+  private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
   private laserBeamAccum = 0
+  private pauseStartMs: number | null = null
   // private laserTickCooldown = 0
 
   // Player health
@@ -161,16 +163,32 @@ export default class GameScene extends Phaser.Scene {
     this.bonusSpeedMul = 1
     this.bonusMagnet = 0
     this.bonusLevelsUsed = 0
+    // Reset per-run firing bonuses and cooldowns
+    this.inlineExtraProjectiles = 0
+    this.weaponCooldowns = {}
+    this.fireCooldown = 0
+    this.laserBeamAccum = 0
 
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
+    this.createXPGemEliteTexture('xp-gem-elite')
     this.createGoldTexture(this.goldTextureKey)
+    this.createGoldEliteTexture('gold-coin-elite')
     this.createHealthTexture(this.healthTextureKey)
     this.createPowerupTexture(this.powerupTextureKey)
     this.xpGroup = this.physics.add.group()
     this.goldGroup = this.physics.add.group()
     this.healthGroup = this.physics.add.group()
     this.powerupGroup = this.physics.add.group()
+    // Separate enemy bullet group
+    this.enemyBullets = this.physics.add.group({ maxSize: 300 })
+    // Collide enemy bullets with player only
+    this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => {
+      const bullet = b as Phaser.Physics.Arcade.Sprite
+      bullet.disableBody(true, true)
+      const dmg = (bullet as any).damage ?? 1
+      this.onPlayerHitProjectile(bullet.x, bullet.y, dmg)
+    })
 
     this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
@@ -285,6 +303,15 @@ export default class GameScene extends Phaser.Scene {
     const dt = delta / 1000
     this.updateDynamicQuality(dt)
     const elapsedSec = (time - this.levelStartMs) / 1000
+    // If paused by LevelUp, keep timer frozen by shifting levelStartMs forward
+    if (this.scene.isPaused()) {
+      if (this.pauseStartMs == null) this.pauseStartMs = time
+    } else if (this.pauseStartMs != null) {
+      // Adjust start so elapsed ignores pause duration
+      const pausedDur = time - this.pauseStartMs
+      this.levelStartMs += pausedDur
+      this.pauseStartMs = null
+    }
     // Spawn curve with waves: slow start then ramps, slight oscillation
     const wave = 0.6 + 0.4 * Math.sin(elapsedSec * 0.25)
     const spawnPerSecBase = Math.min(5, (0.3 + elapsedSec * 0.015) * wave)
@@ -625,6 +652,10 @@ export default class GameScene extends Phaser.Scene {
       )
       // Debug: draw bullet collider rects briefly after spawn
     }
+    // Ensure enemy bullet group exists and colliders are set (player overlap added in create)
+    if (!this.enemyBullets || !(this as any).enemyBullets?.children?.entries) {
+      this.enemyBullets = this.physics.add.group({ maxSize: 300 })
+    }
     if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) {
       this.missileGroup = this.physics.add.group({ maxSize: 120 })
       this.physics.add.overlap(this.missileGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
@@ -687,54 +718,69 @@ export default class GameScene extends Phaser.Scene {
 
   private updateWeapon(dt: number) {
     this.ensureBulletAssets()
-    this.fireCooldown -= dt
-    if (this.fireCooldown <= 0 && this.player) {
-      this.fireCooldown = 1 / this.fireRate
-      const baseAngle = this.getAimAngle()
-      // 1) Inline extra projectiles: fired exactly along the base angle, spaced behind and slower
-      const baseRad = Phaser.Math.DegToRad(baseAngle)
-      const muzzle = 6
-      const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
-      for (let i = 0; i <= inlineCount; i++) {
-        const back = i * 8 // 8px behind per extra for clearer separation
-        const speedScale = 1 - Math.min(0.6, i * 0.12) // each trailing shot is slightly slower
-        const ox = this.player.x + Math.cos(baseRad) * (muzzle - back)
-        const oy = this.player.y + Math.sin(baseRad) * (muzzle - back)
-        this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
-      }
-      // 2) Split multishot (from Splitter/accessories/weapon levels) uses spread fan
-      const spread = this.spreadDeg || 10
-      const fanShots = Math.max(1, Math.floor(this.multishot))
-      if (fanShots > 1) {
-        const half = (fanShots - 1) / 2
-        for (let i = -half; i <= half; i++) {
-          if (i === 0) continue // center already fired via inline loop
-          const a = baseAngle + (i as number) * spread
-          const rad = Phaser.Math.DegToRad(a)
-          const ox = this.player.x + Math.cos(rad) * muzzle
-          const oy = this.player.y + Math.sin(rad) * muzzle
-          this.spawnBullet(ox, oy, a)
-        }
-      }
+    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
+    const has = (k: string) => inv.weapons.some((w) => w.key === k)
+    const hasBlaster = has('blaster') || has('scatter-blaster') || has('pulse-blaster')
+    const hasMissiles = has('missiles') || has('cluster-missiles')
+    const hasOrbs = has('orb') || has('nova-orb')
 
-      // Distinct patterns for additional weapons
-      const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-      const has = (k: string) => inv.weapons.some((w) => w.key === k)
-      // laser/missile/orb handled below as well
-      if (has('missiles') || has('cluster-missiles')) {
-        const a = baseAngle
+    // Per-weapon cooldowns so weapons don't rely on each other
+    const step = (key: string, rate: number, fire: () => void) => {
+      const cur = (this.weaponCooldowns[key] ?? 0) - dt
+      this.weaponCooldowns[key] = cur
+      if (cur <= 0 && this.player) {
+        this.weaponCooldowns[key] = 1 / Math.max(0.1, rate)
+        fire()
+      }
+    }
+    const muzzle = 6
+    // Blaster family
+    if (hasBlaster) {
+      step('blaster', this.fireRate, () => {
+        const baseAngle = this.getAimAngle()
+        const baseRad = Phaser.Math.DegToRad(baseAngle)
+        const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
+        for (let i = 0; i <= inlineCount; i++) {
+          const back = i * 8
+          const speedScale = 1 - Math.min(0.6, i * 0.12)
+          const ox = this.player!.x + Math.cos(baseRad) * (muzzle - back)
+          const oy = this.player!.y + Math.sin(baseRad) * (muzzle - back)
+          this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
+        }
+        const spread = this.spreadDeg || 10
+        const fanShots = Math.max(1, Math.floor(this.multishot))
+        if (fanShots > 1) {
+          const half = (fanShots - 1) / 2
+          for (let i = -half; i <= half; i++) {
+            if (i === 0) continue
+            const a = baseAngle + (i as number) * spread
+            const rad = Phaser.Math.DegToRad(a)
+            const ox = this.player!.x + Math.cos(rad) * muzzle
+            const oy = this.player!.y + Math.sin(rad) * muzzle
+            this.spawnBullet(ox, oy, a)
+          }
+        }
+      })
+    }
+    // Missiles
+    if (hasMissiles) {
+      step('missiles', this.fireRate, () => {
+        const a = this.getAimAngle()
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * muzzle
-        const oy = this.player.y + Math.sin(rad) * muzzle
+        const ox = this.player!.x + Math.cos(rad) * muzzle
+        const oy = this.player!.y + Math.sin(rad) * muzzle
         this.spawnMissile(ox, oy, a)
-      }
-      if (has('orb') || has('nova-orb')) {
-        const a = baseAngle
+      })
+    }
+    // Orbs (staggered fire)
+    if (hasOrbs) {
+      step('orbs', this.fireRate, () => {
+        const a = this.getAimAngle()
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * muzzle
-        const oy = this.player.y + Math.sin(rad) * muzzle
-        this.spawnOrb(ox, oy, a)
-      }
+        const ox = this.player!.x + Math.cos(rad) * muzzle
+        const oy = this.player!.y + Math.sin(rad) * muzzle
+        this.time.delayedCall(120, () => this.spawnOrb(ox, oy, a))
+      })
     }
     // Despawn far bullets
     const cam = this.cameras.main
@@ -810,12 +856,20 @@ export default class GameScene extends Phaser.Scene {
     const tex = 'blaster-tex'
     this.ensureBulletAssets()
     if (!this.bullets || !(this as any).bullets?.children?.entries) return
-    const b = this.bullets.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
-    if (!b) return
+    let b = this.bullets.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
+    if (!b) {
+      b = this.bullets.create(x, y, tex) as Phaser.Physics.Arcade.Sprite
+      if (!b) return
+      b.setActive(true).setVisible(true)
+    }
     b.enableBody(true, x, y, true, true)
     b.setDepth(5)
     b.body?.setSize(2, 2, true)
     b.setCircle(1, 0, 0)
+    // Reset any reused flags from enemy bullets or other projectile types
+    ;(b as any).enemyBullet = false
+    delete (b as any).missile
+    delete (b as any).orb
     const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
@@ -943,6 +997,27 @@ export default class GameScene extends Phaser.Scene {
           if (!isBoss) {
             if (Math.random() < 0.8) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
             if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+          } else {
+            // Boss died by beam
+            this.clearBossTimers()
+            this.bossActive = false
+            this.registry.set('boss-hp', null)
+            if (getOptions().screenShake) this.cameras.main.shake(200, 0.01)
+            const level = runState.state?.level ?? 1
+            if (level < 5) {
+              this.scene.stop('HUD')
+              this.scene.start('Victory')
+            } else if (this.gauntletActive) {
+              this.gauntletStage += 1
+              if (this.gauntletStage < 5) {
+                const camCenter = this.getCameraCenter()
+                this.spawnNextGauntletBoss(camCenter.x, camCenter.y)
+              } else {
+                this.gauntletActive = false
+                this.scene.stop('HUD')
+                this.scene.start('Victory')
+              }
+            }
           }
         } else if ((e as any).isBoss) {
           this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
@@ -1010,9 +1085,9 @@ export default class GameScene extends Phaser.Scene {
       // Drops on enemy death (from kills only)
       const isElite = !!((e as any).elite || (e as any).isElite)
       if (isElite) {
-        // Elite weighted drop: 15% power-up, 50% XP (with 10–40% bonus), else gold 35%
+        // Elite weighted drop: 3% power-up, 50% XP (with 10–40% bonus), else gold 47%
         const r = Math.random()
-        if (r < 0.15) {
+        if (r < 0.03) {
           const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
           if (p) {
             p.setActive(true); p.setVisible(true)
@@ -1022,12 +1097,27 @@ export default class GameScene extends Phaser.Scene {
             this.tweens.add({ targets: p, y: p.y - 2, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
             this.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })
           }
-        } else if (r < 0.65) {
+        } else if (r < 0.53) {
           const bonus = Phaser.Math.FloatBetween(0.1, 0.4)
           const count = 1 + (Math.random() < Math.min(0.9, 0.4 + bonus) ? 1 : 0)
-          for (let i = 0; i < count; i++) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
+          for (let i = 0; i < count; i++) {
+            const xp = this.xpGroup.create(e.x, e.y, 'xp-gem-elite') as Phaser.Physics.Arcade.Sprite
+            xp.setActive(true).setVisible(true)
+            xp.setData('kind', 'xp')
+            this.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
+          }
         } else {
-          this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
+          // Drop 5 gold coins for elite kill
+          for (let i = 0; i < 5; i++) {
+            const angle = Math.random() * Math.PI * 2
+            const dist = Math.random() * 6
+            const gx = e.x + Math.cos(angle) * dist
+            const gy = e.y + Math.sin(angle) * dist
+            const g = this.goldGroup.create(gx, gy, 'gold-coin-elite') as Phaser.Physics.Arcade.Sprite
+            g.setActive(true).setVisible(true)
+            g.setData('kind', 'gold')
+            this.tweens.add({ targets: g, scale: { from: 1, to: 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
+          }
         }
       } else {
         // Non-elite: standard XP/gold small chances
@@ -1156,8 +1246,30 @@ export default class GameScene extends Phaser.Scene {
     if (getOptions().screenShake) this.cameras.main.shake(120, 0.004)
     // Brief enemy knockback and stun
     const kbe = 90
-    enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
+    if (enemy && (enemy as any).setVelocity) {
+      enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
+    }
     ;(enemy as any).stunUntil = this.time.now + 200
+    if (this.hpCur <= 0) {
+      this.scene.stop('HUD')
+      this.scene.start('GameOver')
+    }
+  }
+
+  private onPlayerHitProjectile(px: number, py: number, dmg: number) {
+    if (!this.player) return
+    if (this.hurtCooldown > 0) return
+    this.hurtCooldown = 0.8
+    this.hpCur = Math.max(0, this.hpCur - dmg)
+    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    // Knockback away from projectile position
+    const dxp = this.player.x - px
+    const dyp = this.player.y - py
+    const ang = Math.atan2(dyp, dxp)
+    const kb = 120
+    this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
+    this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
+    if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
     if (this.hpCur <= 0) {
       this.scene.stop('HUD')
       this.scene.start('GameOver')
@@ -1246,7 +1358,7 @@ export default class GameScene extends Phaser.Scene {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private spawnEnemyBullet(x: number, y: number, angleDeg: number) {
-    const b = this.bullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
+    const b = this.enemyBullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
     if (!b) return
     b.enableBody(true, x, y, true, true)
     b.setDepth(4)
@@ -1256,7 +1368,6 @@ export default class GameScene extends Phaser.Scene {
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(b as any).damage = 0
-    ;(b as any).enemyBullet = true
     this.time.delayedCall(3000, () => b.active && b.disableBody(true, true))
   }
 
@@ -1316,17 +1427,30 @@ export default class GameScene extends Phaser.Scene {
     ;(this as any).eliteStats.total++
     const stats = (this as any).eliteStats
     const curRatio = stats.elite / Math.max(1, stats.total)
-    const baseChance = 0.01 + progress * 0.03 + (remain <= 120 ? 0.06 : 0)
-    const targetMax = Math.min(0.35, 0.04 + progress * 0.26)
+    // Reduce base spawn chance for elites; ramp late but stay sparse
+    const baseChance = 0.004 + progress * 0.015 + (remain <= 120 ? 0.03 : 0)
+    const targetMax = Math.min(0.2, 0.03 + progress * 0.12)
     if (Math.random() < baseChance && curRatio < targetMax) {
       stats.elite++
       ;(enemy as any).elite = true
-      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 2.8)
+      // Significantly higher HP for elites
+      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 4.5)
       ;(enemy as any).chase = Math.max(16, Math.round(((enemy as any).chase || 40) * 0.85))
       ;(enemy as any).touchDamage = ((enemy as any).touchDamage || 1) + 1
       enemy.setTint(0xff00ff)
       enemy.setScale(1.15)
       ;(enemy as any).isElite = true
+      // Some elites shoot projectiles periodically
+      if (Math.random() < 0.5) {
+        const fireDelay = Phaser.Math.Between(1200, 1800)
+        const timer = this.time.addEvent({ delay: fireDelay, loop: true, callback: () => {
+          if (!enemy.active) { timer.remove(false); return }
+          const ang = this.player ? Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x) : Math.random() * Math.PI * 2
+          this.spawnEnemyBullet(enemy.x, enemy.y, Phaser.Math.RadToDeg(ang))
+        }})
+        // Tie timer lifetime to enemy
+        ;(enemy as any).on('destroy', () => timer.remove(false))
+      }
     }
   }
 
@@ -1674,6 +1798,21 @@ export default class GameScene extends Phaser.Scene {
     gfx.destroy()
   }
 
+  private createXPGemEliteTexture(key: string) {
+    if (this.textures.exists(key)) return
+    const size = 6
+    const g = this.add.graphics()
+    // purple gem
+    g.fillStyle(0xaa66ff, 1)
+    g.fillTriangle(3, 0, 6, 3, 0, 3)
+    g.fillTriangle(0, 3, 6, 3, 3, 6)
+    // small white glint
+    g.fillStyle(0xffffff, 0.9)
+    g.fillRect(2, 1, 1, 1)
+    g.generateTexture(key, size, size)
+    g.destroy()
+  }
+
   private createGoldTexture(key: string) {
     if (this.textures.exists(key)) return
     const size = 6
@@ -1682,6 +1821,24 @@ export default class GameScene extends Phaser.Scene {
     gfx.fillCircle(size / 2, size / 2, size / 2)
     gfx.generateTexture(key, size, size)
     gfx.destroy()
+  }
+
+  private createGoldEliteTexture(key: string) {
+    if (this.textures.exists(key)) return
+    const size = 8
+    const g = this.add.graphics()
+    // coin base
+    g.fillStyle(0xffcc33, 1)
+    g.fillCircle(size / 2, size / 2, size / 2 - 1)
+    // star glint (simple 4-point star using triangles)
+    g.fillStyle(0xffffff, 0.95)
+    const cx = size / 2, cy = size / 2
+    g.fillTriangle(cx, cy - 2, cx - 1, cy, cx + 1, cy)
+    g.fillTriangle(cx, cy + 2, cx - 1, cy, cx + 1, cy)
+    g.fillTriangle(cx - 2, cy, cx, cy - 1, cx, cy + 1)
+    g.fillTriangle(cx + 2, cy, cx, cy - 1, cx, cy + 1)
+    g.generateTexture(key, size, size)
+    g.destroy()
   }
 
   private createPowerupTexture(key: string) {
