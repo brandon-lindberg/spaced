@@ -24,6 +24,8 @@ export default class GameOverScene extends Phaser.Scene {
     this.input.removeAllListeners()
     retryBtn.on('pointerdown', () => this.retry())
     titleBtn.on('pointerdown', () => this.toTitle())
+    // Explanatory note placed below buttons so it isn't obscured
+    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: HP persists; everything else resets.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
   }
 
   private retry() {

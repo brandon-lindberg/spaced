@@ -150,7 +150,11 @@ export default class GameScene extends Phaser.Scene {
     this.levelStartMs = rs?.levelStartMs ?? this.time.now
 
     // Reset per-level state
+    this.level = 1
+    this.xpToNext = 3
+    this.spawnAccumulator = 0
     this.registry.set('xp', 0)
+    this.registry.set('level', 1)
     this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
     if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) {
       this.registry.set('gold', 0)
@@ -777,8 +781,9 @@ export default class GameScene extends Phaser.Scene {
       step('orbs', this.fireRate, () => {
         const a = this.getAimAngle()
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player!.x + Math.cos(rad) * muzzle
-        const oy = this.player!.y + Math.sin(rad) * muzzle
+        const muzzleOrb = 12
+        const ox = this.player!.x + Math.cos(rad) * muzzleOrb
+        const oy = this.player!.y + Math.sin(rad) * muzzleOrb
         this.time.delayedCall(120, () => this.spawnOrb(ox, oy, a))
       })
     }
@@ -904,19 +909,23 @@ export default class GameScene extends Phaser.Scene {
   private spawnOrb(x: number, y: number, angleDeg: number) {
     this.ensureBulletAssets()
     if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) return
-    const o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
-    if (!o) return
+    let o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
+    if (!o) {
+      o = this.orbGroup.create(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
+      if (!o) return
+      o.setActive(true).setVisible(true)
+    }
     o.enableBody(true, x, y, true, true)
     o.setDepth(5)
-    o.body?.setSize(4, 4, true)
-    o.setCircle(2, 0, 0)
-    const speed = 90
+    o.body?.setSize(8, 8, true)
+    o.setCircle(4, 0, 0)
+    const speed = 110
     const rad = Phaser.Math.DegToRad(angleDeg)
     o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(o as any).damage = this.bulletDamage
     ;(o as any).orb = true
     ;(o as any).exploded = false
-    this.time.delayedCall(800, () => this.explodeOrb(o))
+    ;(o as any).bornUntil = this.time.now + 120
   }
 
   private explodeOrb(o: Phaser.Physics.Arcade.Sprite) {
@@ -1068,7 +1077,11 @@ export default class GameScene extends Phaser.Scene {
     if ((b as any).enemyBullet) return
     // If an orb touches an enemy, trigger explosion immediately
     if ((b as any).orb) {
-      this.explodeOrb(b)
+      // Ignore collisions for newly spawned orbs to avoid immediate detonation
+      const bornUntil = (b as any).bornUntil as number | undefined
+      if (!bornUntil || this.time.now >= bornUntil) {
+        this.explodeOrb(b)
+      }
       return
     }
     const damage = (b as any).damage ?? 1
@@ -1367,7 +1380,7 @@ export default class GameScene extends Phaser.Scene {
     const speed = 120
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
-    ;(b as any).damage = 0
+    ;(b as any).damage = 1
     this.time.delayedCall(3000, () => b.active && b.disableBody(true, true))
   }
 
