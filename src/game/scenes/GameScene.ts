@@ -58,6 +58,7 @@ export default class GameScene extends Phaser.Scene {
   private fireRate = 1.2 // shots per second (easier early game)
   private bulletDamage = 1
   private multishot = 1
+  private inlineExtraProjectiles = 0
   private spreadDeg = 10
   // In-run bonus modifiers from level-up choices (applied on top of inventory stats)
   private bonusFireRateMul = 1
@@ -207,7 +208,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Inventory (persist across level restarts within run)
     let inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    if (!inv.weapons || inv.weapons.length === 0) addWeapon(inv, 'blaster')
+    // Ensure a fresh run starts with only a weapon and no accessories
+    if (!inv.weapons || inv.weapons.length === 0) {
+      addWeapon(inv, 'blaster')
+      inv.accessories = []
+    }
     this.registry.set('inv', inv as unknown as InventoryState)
     this.registry.set('inv-weapons', describeWeapons(inv))
     this.registry.set('inv-accessories', describeAccessories(inv))
@@ -619,20 +624,30 @@ export default class GameScene extends Phaser.Scene {
     if (this.fireCooldown <= 0 && this.player) {
       this.fireCooldown = 1 / this.fireRate
       const baseAngle = this.getAimAngle()
-      const spread = this.spreadDeg || 10
-      const angles: number[] = []
-      if (this.multishot <= 1) {
-        angles.push(baseAngle)
-      } else {
-        const half = (this.multishot - 1) / 2
-        for (let i = -half; i <= half; i++) angles.push(baseAngle + (i as number) * spread)
-      }
+      // 1) Inline extra projectiles: fired exactly along the base angle, spaced behind and slower
+      const baseRad = Phaser.Math.DegToRad(baseAngle)
       const muzzle = 6
-      for (const a of angles) {
-        const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * muzzle
-        const oy = this.player.y + Math.sin(rad) * muzzle
-        this.spawnBullet(ox, oy, a)
+      const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
+      for (let i = 0; i <= inlineCount; i++) {
+        const back = i * 6 // 6px behind per extra for clearer separation
+        const speedScale = 1 - Math.min(0.6, i * 0.15) // each trailing shot is slower (down to -60%)
+        const ox = this.player.x + Math.cos(baseRad) * (muzzle - back)
+        const oy = this.player.y + Math.sin(baseRad) * (muzzle - back)
+        this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
+      }
+      // 2) Split multishot (from Splitter/accessories/weapon levels) uses spread fan
+      const spread = this.spreadDeg || 10
+      const fanShots = Math.max(1, Math.floor(this.multishot))
+      if (fanShots > 1) {
+        const half = (fanShots - 1) / 2
+        for (let i = -half; i <= half; i++) {
+          if (i === 0) continue // center already fired via inline loop
+          const a = baseAngle + (i as number) * spread
+          const rad = Phaser.Math.DegToRad(a)
+          const ox = this.player.x + Math.cos(rad) * muzzle
+          const oy = this.player.y + Math.sin(rad) * muzzle
+          this.spawnBullet(ox, oy, a)
+        }
       }
 
       // Distinct patterns for additional weapons
@@ -724,7 +739,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private spawnBullet(x: number, y: number, angleDeg: number) {
+  private spawnBullet(x: number, y: number, angleDeg: number, speedOverride?: number) {
     const tex = 'blaster-tex'
     this.ensureBulletAssets()
     if (!this.bullets || !(this as any).bullets?.children?.entries) return
@@ -734,7 +749,7 @@ export default class GameScene extends Phaser.Scene {
     b.setDepth(5)
     b.body?.setSize(2, 2, true)
     b.setCircle(1, 0, 0)
-    const speed = 300
+    const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(b as any).damage = this.bulletDamage
@@ -1655,7 +1670,7 @@ export default class GameScene extends Phaser.Scene {
         if (key === 'gold') this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 5)
         if (key === 'firerate') { this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15); this.bonusLevelsUsed++ }
         if (key === 'damage') { this.bonusDamage = Math.min(99, this.bonusDamage + 1); this.bonusLevelsUsed++ }
-        if (key === 'multishot') { this.bonusMultishot = Math.min(6, this.bonusMultishot + 1); this.bonusLevelsUsed++ }
+        if (key === 'multishot') { this.inlineExtraProjectiles = Math.min(6, this.inlineExtraProjectiles + 1); this.bonusLevelsUsed++ }
         if (key === 'hpmax') {
           const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
           this.hpMax = Math.min(99, this.hpMax + inc)
