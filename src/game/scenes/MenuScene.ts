@@ -1,4 +1,6 @@
 import Phaser from 'phaser'
+import { runState } from '../systems/runState'
+import { getBankGold } from '../systems/storage'
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -21,11 +23,19 @@ export default class MenuScene extends Phaser.Scene {
     })
     press.setOrigin(0.5)
 
+    const bank = this.add.text(6, height - 14, `Bank: ${getBankGold()}g`, {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#ffcc33',
+    })
+    bank.setScrollFactor(0)
+
     // Ensure input is enabled after returning from other scenes
     this.input.enabled = true
     if (this.input.keyboard) this.input.keyboard.enabled = true
 
     const start = () => {
+      runState.newRun()
       this.scene.start('Game')
       this.scene.launch('HUD')
     }

@@ -13,6 +13,7 @@ import PauseScene from './scenes/PauseScene'
 import GameOverScene from './scenes/GameOverScene'
 import VictoryScene from './scenes/VictoryScene'
 import LevelUpScene from './scenes/LevelUpScene'
+import { attachGameOverSmokeTest } from './dev/smokeGameOver'
 
 export default function PhaserGame() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -61,6 +62,8 @@ export default function PhaserGame() {
     }
 
     const game = new Phaser.Game(config)
+    // Dev smoke test (optional via URL hash)
+    try { attachGameOverSmokeTest(game) } catch {}
 
     // Orientation / aspect hint overlay for unsupported portrait
     const updateOverlay = () => {
