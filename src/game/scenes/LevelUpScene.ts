@@ -30,7 +30,7 @@ export default class LevelUpScene extends Phaser.Scene {
       ? this.choices
       : [
           { key: 'acc-thrusters', label: 'Accessory: Thrusters (+speed)', color: '#66ccff' },
-          { key: 'acc-magnet-core', label: 'Accessory: Magnet Core (+pickup)', color: '#33ff99' },
+          { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam (+pickup)', color: '#33ff99' },
           { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader (+fire rate)', color: '#ffaa66' },
           { key: 'acc-power-cell', label: 'Accessory: Power Cell (+damage)', color: '#ff8866' },
           { key: 'acc-splitter', label: 'Accessory: Splitter (+multishot)', color: '#ccccff' },
@@ -63,7 +63,7 @@ export default class LevelUpScene extends Phaser.Scene {
           c.key === 'w-missiles' ? 'Missiles: homing, high impact' :
           c.key === 'w-orb' ? 'Orb: detonates for AoE blast' :
           c.key === 'acc-thrusters' ? 'Thrusters: move faster' :
-          c.key === 'acc-magnet-core' ? 'Magnet: larger pickup radius' :
+          c.key === 'acc-magnet-core' ? 'Tractor Beam: larger pickup radius' :
           c.key === 'acc-ammo-loader' ? 'Ammo Loader: higher fire rate' :
           c.key === 'acc-power-cell' ? 'Power Cell: more damage' :
           c.key === 'acc-splitter' ? 'Splitter: more projectiles' :

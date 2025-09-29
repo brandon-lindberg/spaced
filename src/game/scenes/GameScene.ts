@@ -896,8 +896,8 @@ export default class GameScene extends Phaser.Scene {
     if (!m) return
     m.enableBody(true, x, y, true, true)
     m.setDepth(5)
-    m.body?.setSize(3, 3, true)
-    m.setCircle(2, 0, 0)
+    m.body?.setSize(5, 5, true)
+    m.setCircle(3, 0, 0)
     const speed = 160
     const rad = Phaser.Math.DegToRad(angleDeg)
     m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
@@ -1090,9 +1090,9 @@ export default class GameScene extends Phaser.Scene {
     // Hit feedback (applies to blaster, laser shot, missiles, etc.)
     this.showHitSpark(e.x, e.y)
     b.disableBody(true, true)
-    // Missile impact explosion
-      if ((b as any).missile) {
-      this.showExplosion(e.x, e.y, 16)
+    // Missile impact explosion always on contact
+    if ((b as any).missile) {
+      this.showExplosion(e.x, e.y, 20)
     }
     if (hp <= 0) {
       // Drops on enemy death (from kills only)
@@ -1264,8 +1264,11 @@ export default class GameScene extends Phaser.Scene {
     }
     ;(enemy as any).stunUntil = this.time.now + 200
     if (this.hpCur <= 0) {
-      this.scene.stop('HUD')
-      this.scene.start('GameOver')
+      this.time.delayedCall(0, () => {
+        this.scene.stop('HUD')
+        this.scene.stop('Game')
+        this.scene.start('GameOver')
+      })
     }
   }
 
@@ -1284,8 +1287,11 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
     if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
     if (this.hpCur <= 0) {
-      this.scene.stop('HUD')
-      this.scene.start('GameOver')
+      this.time.delayedCall(0, () => {
+        this.scene.stop('HUD')
+        this.scene.stop('Game')
+        this.scene.start('GameOver')
+      })
     }
   }
 
@@ -1962,15 +1968,13 @@ export default class GameScene extends Phaser.Scene {
       this.time.timeScale = 0
       // Build 3-of-N choices
       const pool = [
-        { key: 'speed', label: 'Thrusters +10% speed', color: '#66ccff' },
-        { key: 'magnet', label: 'Magnet +24px', color: '#ffcc33' },
         { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
         { key: 'firerate', label: 'Blaster +15% fire rate', color: '#88ff88' },
         { key: 'damage', label: 'Blaster +1 damage', color: '#ff8866' },
         { key: 'multishot', label: 'Blaster +1 projectile', color: '#ccccff' },
         { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
         { key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' },
-        { key: 'acc-magnet-core', label: 'Accessory: Magnet Core', color: '#33ff99' },
+        { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam', color: '#33ff99' },
         { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' },
         { key: 'acc-power-cell', label: 'Accessory: Power Cell', color: '#ff8866' },
         { key: 'acc-splitter', label: 'Accessory: Splitter', color: '#ccccff' },
@@ -1983,8 +1987,7 @@ export default class GameScene extends Phaser.Scene {
       // Apply choice when LevelUpScene emits
       const applyOnce = (key: string) => {
         if (this.bonusLevelsUsed >= this.maxBonusLevels) { this.game.events.off('levelup-apply', applyOnce as any); this.scene.resume(); return }
-        if (key === 'speed') { this.bonusSpeedMul = Math.min(2.5, this.bonusSpeedMul * 1.1); this.bonusLevelsUsed++ }
-        if (key === 'magnet') { this.bonusMagnet = Math.min(280, this.bonusMagnet + 24); this.bonusLevelsUsed++ }
+        // speed and magnet inline bonuses removed (use accessories instead)
         if (key === 'gold') this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 5)
         if (key === 'firerate') { this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15); this.bonusLevelsUsed++ }
         if (key === 'damage') { this.bonusDamage = Math.min(99, this.bonusDamage + 1); this.bonusLevelsUsed++ }
