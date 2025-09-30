@@ -112,8 +112,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // Restore health at the start of every level
-    this.hpCur = this.hpMax
+    // Carry over HP across levels if present
+    const hpReg = this.registry.get('hp') as { cur: number; max: number } | undefined
+    if (hpReg) { this.hpMax = hpReg.max; this.hpCur = Math.max(0, Math.min(hpReg.cur, hpReg.max)) }
     // Build background for current level
     this.setupBackgroundForLevel((runState.state?.level ?? 1))
     audio.init(this)
@@ -153,26 +154,27 @@ export default class GameScene extends Phaser.Scene {
     this.levelStartMs = rs?.levelStartMs ?? this.time.now
     this.remainingSec = rs?.levelDurationSec ?? 900
 
-    // Reset per-level state
-    this.level = 1
-    this.xpToNext = 3
+    // Per-level init without wiping run state
     this.spawnAccumulator = 0
-    this.registry.set('xp', 0)
-    this.registry.set('level', 1)
+    // Initialize progression only if not already present (preserve across levels)
+    if (this.registry.get('level') === undefined || this.registry.get('level') === null) this.registry.set('level', 1)
+    if (this.registry.get('xp') === undefined || this.registry.get('xp') === null) this.registry.set('xp', 0)
+    const xp2 = this.registry.get('xpToNext') as number | undefined
+    this.xpToNext = typeof xp2 === 'number' ? xp2 : 3
+    if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) this.registry.set('gold', 0)
     this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-    if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) {
-      this.registry.set('gold', 0)
-    }
     this.registry.set('boss-hp', null)
-    // Reset in-run bonus modifiers
-    this.bonusFireRateMul = 1
-    this.bonusDamage = 0
-    this.bonusMultishot = 0
-    this.bonusSpeedMul = 1
-    this.bonusMagnet = 0
-    this.bonusLevelsUsed = 0
-    // Reset per-run firing bonuses and cooldowns
-    this.inlineExtraProjectiles = 0
+    // Restore bonuses if present
+    const b = (this.registry.get('bonuses') as any) || null
+    if (b) {
+      this.bonusFireRateMul = b.fireRateMul ?? this.bonusFireRateMul
+      this.bonusDamage = b.damage ?? this.bonusDamage
+      this.bonusMultishot = b.multishot ?? this.bonusMultishot
+      this.bonusSpeedMul = b.speedMul ?? this.bonusSpeedMul
+      this.bonusMagnet = b.magnet ?? this.bonusMagnet
+      this.bonusLevelsUsed = b.levelsUsed ?? this.bonusLevelsUsed
+      this.inlineExtraProjectiles = b.inlineExtra ?? this.inlineExtraProjectiles
+    }
     this.weaponCooldowns = {}
     this.laserBeamAccum = 0
 
@@ -254,6 +256,25 @@ export default class GameScene extends Phaser.Scene {
     this.registry.set('inv-weapons', describeWeapons(inv))
     this.registry.set('inv-accessories', describeAccessories(inv))
     this.recomputeEffectiveStats()
+
+    // Create a per-level checkpoint snapshot for Retry
+    const snapshot = {
+      playerLevel: this.registry.get('level'),
+      xp: this.registry.get('xp'),
+      xpToNext: this.xpToNext,
+      gold: this.registry.get('gold'),
+      inv: this.registry.get('inv'),
+      bonuses: {
+        fireRateMul: this.bonusFireRateMul,
+        damage: this.bonusDamage,
+        multishot: this.bonusMultishot,
+        speedMul: this.bonusSpeedMul,
+        magnet: this.bonusMagnet,
+        levelsUsed: this.bonusLevelsUsed,
+        inlineExtra: this.inlineExtraProjectiles,
+      },
+    }
+    runState.setCheckpoint((runState.state?.level ?? 1), snapshot)
 
     // Touch joystick UI (mobile)
     this.createTouchJoystick()

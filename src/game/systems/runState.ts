@@ -16,6 +16,7 @@ export const levelDurationsSec: Record<number, number> = {
 
 export const runState = {
   state: null as RunState | null,
+  checkpoints: new Map<number, unknown>(),
 
   newRun(seed?: number) {
     this.state = {
@@ -41,6 +42,14 @@ export const runState = {
     if (!this.state) return 0
     const elapsed = Math.max(0, (nowMs - this.state.levelStartMs) / 1000)
     return Math.max(0, Math.ceil(this.state.levelDurationSec - elapsed))
+  },
+
+  setCheckpoint(level: number, snapshot: unknown) {
+    this.checkpoints.set(level, snapshot)
+  },
+
+  getCheckpoint<T = unknown>(level: number): T | null {
+    return (this.checkpoints.get(level) as T) ?? null
   },
 }
 
