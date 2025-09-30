@@ -157,7 +157,14 @@ export default class GameScene extends Phaser.Scene {
     // Per-level init without wiping run state
     this.spawnAccumulator = 0
     // Initialize progression only if not already present (preserve across levels)
-    if (this.registry.get('level') === undefined || this.registry.get('level') === null) this.registry.set('level', 1)
+    const currentLevel = this.registry.get('level')
+    if (currentLevel === undefined || currentLevel === null) {
+      this.registry.set('level', 1)
+      this.level = 1
+    } else {
+      // Always sync internal level with registry level (important for retry)
+      this.level = currentLevel
+    }
     if (this.registry.get('xp') === undefined || this.registry.get('xp') === null) this.registry.set('xp', 0)
     const xp2 = this.registry.get('xpToNext') as number | undefined
     this.xpToNext = typeof xp2 === 'number' ? xp2 : 3
