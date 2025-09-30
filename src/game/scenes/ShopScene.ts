@@ -2,8 +2,14 @@ import Phaser from 'phaser'
 import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons, MAX_ACCESSORY_LEVEL, MAX_WEAPON_LEVEL } from '../systems/inventory'
 import type { InventoryState } from '../systems/inventory'
 import { runState } from '../systems/runState'
+import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
+
+type ShopButton = { r: Phaser.GameObjects.Rectangle; t: Phaser.GameObjects.Text; onClick: () => void }
 
 export default class ShopScene extends Phaser.Scene {
+  private buttons: ShopButton[] = []
+  private selectedIndex = 0
+
   constructor() {
     super('Shop')
   }
@@ -55,7 +61,9 @@ export default class ShopScene extends Phaser.Scene {
         r.on('pointerout', () => { tip?.destroy(); tip = null })
       }
       r.on('pointerdown', () => { onClick(); updateHUD() })
-      return { r, t }
+      const btn: ShopButton = { r, t, onClick }
+      this.buttons.push(btn)
+      return btn
     }
 
     // Offer 3 random upgrades among owned items each visit
@@ -170,6 +178,71 @@ export default class ShopScene extends Phaser.Scene {
         updateHUD()
       }, 'Add a new accessory up to 5 max', 'icon-acc')
     }
+
+    // Gamepad navigation
+    const highlight = () => {
+      this.buttons.forEach((btn, i) => {
+        const isSelected = i === this.selectedIndex
+        btn.r.setFillStyle(isSelected ? 0x333355 : 0x222233, 1)
+        btn.t.setColor(isSelected ? '#ffffcc' : '#ffffff')
+      })
+    }
+    
+    const focus = this.add.graphics().setDepth(999)
+    const updateFocus = () => {
+      if (this.buttons.length === 0) return
+      const btn = this.buttons[this.selectedIndex]
+      const b = btn.r.getBounds()
+      focus.clear()
+      focus.lineStyle(1, 0xffff66, 1)
+      focus.strokeRect(b.x - 2, b.y - 2, b.width + 4, b.height + 4)
+    }
+    
+    highlight()
+    updateFocus()
+    
+    ensureMobileGamepadInit(this)
+    attachGamepad(this, {
+      up: () => {
+        if (this.buttons.length === 0) return
+        this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+        highlight()
+        updateFocus()
+      },
+      down: () => {
+        if (this.buttons.length === 0) return
+        this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+        highlight()
+        updateFocus()
+      },
+      left: () => {
+        if (this.buttons.length === 0) return
+        this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+        highlight()
+        updateFocus()
+      },
+      right: () => {
+        if (this.buttons.length === 0) return
+        this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+        highlight()
+        updateFocus()
+      },
+      confirm: () => {
+        if (this.buttons.length === 0) return
+        const btn = this.buttons[this.selectedIndex]
+        btn.onClick()
+        updateHUD()
+      },
+      cancel: () => {
+        // Find and click the Continue button (should be last or near last)
+        const continueBtn = this.buttons.find(b => b.t.text === 'Continue')
+        if (continueBtn) {
+          continueBtn.onClick()
+          updateHUD()
+        }
+      },
+    })
+    attachGamepadDebug(this)
   }
 }
 

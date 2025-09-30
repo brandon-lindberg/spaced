@@ -206,6 +206,35 @@ function startMobileGamepadPolling(scene: Phaser.Scene) {
   // Track previous button states to detect changes
   const previousButtonStates = new Map<number, boolean[]>()
   
+  // Register native gamepads with Phaser manually
+  const registerGamepads = () => {
+    try {
+      const pads = navigator.getGamepads()
+      
+      pads.forEach((pad) => {
+        if (!pad) return
+        
+        // Check if Phaser already has this gamepad
+        const gamepadPlugin = scene.input.gamepad
+        if (!gamepadPlugin) return
+        
+        // If Phaser doesn't have gamepad objects, manually add them
+        if (!gamepadPlugin.gamepads || gamepadPlugin.gamepads.length === 0) {
+          // Force Phaser to create gamepad objects by calling its internal methods
+          try {
+            // Access the plugin's internal pad array and add gamepads
+            (gamepadPlugin as any).onGamepadConnected({ gamepad: pad })
+          } catch {}
+        }
+      })
+    } catch (err) {
+      console.warn('[Mobile Gamepad] Error registering gamepads:', err)
+    }
+  }
+  
+  // Register gamepads initially
+  registerGamepads()
+  
   const poll = () => {
     try {
       const pads = navigator.getGamepads()
@@ -233,11 +262,19 @@ function startMobileGamepadPolling(scene: Phaser.Scene) {
             sceneManager.scenes.forEach((s: Phaser.Scene) => {
               if (s.scene.isActive() && s.input.gamepad) {
                 try {
-                  // Create mock Phaser objects for the event
+                  // Ensure this scene has gamepad objects registered
+                  if (!s.input.gamepad.gamepads || s.input.gamepad.gamepads.length === 0) {
+                    try {
+                      (s.input.gamepad as any).onGamepadConnected({ gamepad: pad })
+                    } catch {}
+                  }
+                  
+                  // Create mock Phaser button object
                   const mockButton = { index: btnIndex, value: button.value, pressed: true }
-                  // Try to use existing Phaser pad or create a mock
+                  // Get the Phaser gamepad object or use the native one
                   const phaserPad = s.input.gamepad.gamepads?.[i] || pad as any
                   
+                  console.log('[Mobile Gamepad Poll] Emitting to scene:', s.scene.key, 'btn:', btnIndex)
                   s.input.gamepad.emit('down', phaserPad, mockButton)
                 } catch (err) {
                   console.warn('[Mobile Gamepad Poll] Error emitting to scene:', s.scene.key, err)

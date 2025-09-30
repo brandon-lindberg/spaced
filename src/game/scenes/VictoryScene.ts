@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { addToBankGold } from '../systems/storage'
-import { attachGamepad } from '../systems/gamepad'
+import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
 
 export default class VictoryScene extends Phaser.Scene {
   constructor() {
@@ -21,7 +21,9 @@ export default class VictoryScene extends Phaser.Scene {
       const proceed = () => this.scene.start('Menu')
       this.input.keyboard?.once('keydown-ENTER', proceed)
       this.input.once('pointerdown', proceed)
+      ensureMobileGamepadInit(this)
       attachGamepad(this, { confirm: proceed, cancel: proceed })
+      attachGamepadDebug(this)
     } else {
       // Between-level: go to Cutscene then Shop
       this.add.text(width / 2, height / 2 - 10, `Level ${level} Clear`, {
@@ -33,7 +35,9 @@ export default class VictoryScene extends Phaser.Scene {
       const proceed = () => this.scene.start('Cutscene')
       this.input.keyboard?.once('keydown-ENTER', proceed)
       this.input.once('pointerdown', proceed)
+      ensureMobileGamepadInit(this)
       attachGamepad(this, { confirm: proceed, cancel: proceed })
+      attachGamepadDebug(this)
     }
   }
 }
