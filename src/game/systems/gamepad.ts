@@ -103,4 +103,90 @@ export function ensureGamepadProbe(scene: Phaser.Scene) {
   scene.events.once('destroy', () => { try { timer.remove(false) } catch {}; window.removeEventListener('gamepadconnected', onNativeConnected) })
 }
 
+// iOS/mobile requires user gesture before gamepad API is accessible
+export function ensureMobileGamepadInit(scene: Phaser.Scene) {
+  // Only run on mobile devices
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  if (!isMobile) return
+
+  // Check if we've already initialized
+  const storageKey = 'spaced.gamepad.mobile.initialized'
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(storageKey) === '1') {
+      // Already initialized, just poll gamepads to ensure plugin is active
+      try { navigator.getGamepads() } catch {}
+      return
+    }
+  } catch {}
+
+  // Create an overlay prompt for user interaction
+  const { width, height } = scene.scale
+  const overlay = scene.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0).setDepth(10000).setScrollFactor(0)
+  const promptBg = scene.add.rectangle(width/2, height/2, 200, 60, 0x222244, 1).setOrigin(0.5).setDepth(10001).setScrollFactor(0)
+  promptBg.setStrokeStyle(2, 0x3355ff, 1)
+  const promptText = scene.add.text(width/2, height/2 - 8, 'Tap to enable\ngamepad', {
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#ffffff',
+    align: 'center'
+  }).setOrigin(0.5).setDepth(10002).setScrollFactor(0)
+
+  // Make the overlay interactive
+  overlay.setInteractive({ useHandCursor: true })
+  
+  const activate = () => {
+    // Call getGamepads to trigger browser's gamepad initialization
+    // This MUST be called during a user gesture on iOS/mobile browsers
+    try {
+      const pads = navigator.getGamepads()
+      console.log('[Mobile Gamepad Init] Gamepads after user gesture:', pads)
+      
+      // Check if any gamepads are connected
+      const connected = Array.from(pads).filter(p => p !== null)
+      if (connected.length > 0) {
+        scene.registry.set('toast', 'Controller ready!')
+        console.log('[Mobile Gamepad Init] Found controllers:', connected)
+        
+        // Manually trigger Phaser's gamepad connected event
+        connected.forEach(pad => {
+          try { 
+            (scene.input.gamepad as any)?.emit?.('connected', pad)
+          } catch {}
+        })
+      } else {
+        // No gamepad detected - show helpful message
+        console.log('[Mobile Gamepad Init] No gamepads detected. Make sure your controller is connected.')
+        scene.registry.set('toast', 'No controller detected')
+      }
+    } catch (err) {
+      console.warn('[Mobile Gamepad Init] Error accessing gamepads:', err)
+    }
+
+    // Mark as initialized
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(storageKey, '1')
+      }
+    } catch {}
+
+    // Remove the overlay
+    overlay.destroy()
+    promptBg.destroy()
+    promptText.destroy()
+  }
+
+  overlay.on('pointerdown', activate)
+
+  // Clean up if scene changes
+  const cleanup = () => {
+    try {
+      overlay.destroy()
+      promptBg.destroy()
+      promptText.destroy()
+    } catch {}
+  }
+  scene.events.once('shutdown', cleanup)
+  scene.events.once('destroy', cleanup)
+}
+
 
