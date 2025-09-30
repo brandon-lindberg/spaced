@@ -100,6 +100,8 @@ export default class OptionsScene extends Phaser.Scene {
     }
     updateFocus()
     attachGamepadDebug(this)
+    // Ensure mobile/iOS controllers detected
+    try { (this.game as any); } finally { /* noop */ }
   }
 
   // moved to OptionsGamepad scene
