@@ -26,7 +26,7 @@ export default class GameOverScene extends Phaser.Scene {
     retryBtn.on('pointerdown', () => this.retry())
     titleBtn.on('pointerdown', () => this.toTitle())
     // Explanatory note placed below buttons so it isn't obscured
-    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: HP persists; everything else resets.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
+    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: Full HP; Level 1 resets all, others use checkpoint.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
 
     ensureMobileGamepadInit(this)
     attachGamepad(this, { confirm: () => this.retry(), cancel: () => this.toTitle() })
@@ -40,29 +40,54 @@ export default class GameOverScene extends Phaser.Scene {
     this.scene.stop('Shop')
     this.scene.stop('Cutscene')
     this.scene.stop('Victory')
-    // Preserve HP across retry, restore snapshot for current level
+    // Restore full health on retry, handle Level 1 vs other levels differently
     const hp = (this.registry.get('hp') as { cur: number; max: number } | undefined) ?? { cur: 10, max: 10 }
     const lvl = runState.state?.level ?? 1
-    const snap = runState.getCheckpoint<any>(lvl)
-    if (snap) {
-      this.registry.set('level', snap.playerLevel)
-      this.registry.set('xp', snap.xp)
-      this.registry.set('xpToNext', snap.xpToNext)
-      this.registry.set('gold', snap.gold)
-      this.registry.set('inv', snap.inv)
-      this.registry.set('boss-hp', null)
-      this.registry.set('bonuses', snap.bonuses)
-    } else {
-      // fallback minimal - reset to level 1 if no checkpoint
+    
+    if (lvl === 1) {
+      // Level 1: Reset everything to starting values (except health level-ups)
       this.registry.set('level', 1)
       this.registry.set('xp', 0)
       this.registry.set('xpToNext', 3)
       this.registry.set('gold', 0)
+      this.registry.set('inv', createInventory())
       this.registry.set('boss-hp', null)
+      // Reset all weapon bonuses but preserve health level-ups
+      this.registry.set('bonuses', {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      })
+    } else {
+      // Levels 2-5: Restore from checkpoint if available
+      const snap = runState.getCheckpoint<any>(lvl)
+      if (snap) {
+        this.registry.set('level', snap.playerLevel)
+        this.registry.set('xp', snap.xp)
+        this.registry.set('xpToNext', snap.xpToNext)
+        this.registry.set('gold', snap.gold)
+        this.registry.set('inv', snap.inv)
+        this.registry.set('boss-hp', null)
+        this.registry.set('bonuses', snap.bonuses)
+      } else {
+        // fallback - reset to level 1 if no checkpoint
+        this.registry.set('level', 1)
+        this.registry.set('xp', 0)
+        this.registry.set('xpToNext', 3)
+        this.registry.set('gold', 0)
+        this.registry.set('inv', createInventory())
+        this.registry.set('boss-hp', null)
+        this.registry.set('bonuses', null)
+      }
     }
+    
     runState.startLevel(lvl, this.time.now)
-    // restore HP state (persist current HP)
-    this.registry.set('hp', { cur: Math.max(0, Math.min(hp.cur, hp.max)), max: hp.max })
+    // restore HP state (full health on retry)
+    this.registry.set('hp', { cur: hp.max, max: hp.max })
     // Stop any existing Game scene
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()
