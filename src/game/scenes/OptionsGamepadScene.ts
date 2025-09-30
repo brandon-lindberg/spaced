@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { getOptions, setOptions } from '../systems/options'
-import { attachGamepad, attachGamepadDebug } from '../systems/gamepad'
+import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
 
 type ActionKey = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'cancel' | 'pause'
 
@@ -34,7 +34,7 @@ export default class OptionsGamepadScene extends Phaser.Scene {
     const hi = () => rows.forEach((r, i) => r.value.setColor(i===sel?'#ffffff':'#ffffcc'))
     const focus = this.add.graphics().setDepth(999)
     const updateFocus = () => { const w = rows[sel].value; const b = w.getBounds(); focus.clear(); focus.lineStyle(1,0xffff66,1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6) }
-    hi(); updateFocus(); attachGamepadDebug(this)
+    hi(); updateFocus(); ensureMobileGamepadInit(this); attachGamepadDebug(this)
     attachGamepad(this, { up: () => { sel=(sel+actions.length-1)%actions.length; hi(); updateFocus() }, down: () => { sel=(sel+1)%actions.length; hi(); updateFocus() }, confirm: () => this.capture(actions[sel], rows[sel].value), cancel: () => this.scene.start('Options') })
     this.input.keyboard?.on('keydown-UP', () => { sel=(sel+actions.length-1)%actions.length; hi() })
     this.input.keyboard?.on('keydown-DOWN', () => { sel=(sel+1)%actions.length; hi() })

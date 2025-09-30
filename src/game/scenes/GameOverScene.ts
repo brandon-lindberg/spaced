@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { createInventory } from '../systems/inventory'
-import { attachGamepad } from '../systems/gamepad'
+import { attachGamepad, ensureMobileGamepadInit } from '../systems/gamepad'
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -28,6 +28,7 @@ export default class GameOverScene extends Phaser.Scene {
     // Explanatory note placed below buttons so it isn't obscured
     this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: HP persists; everything else resets.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
 
+    ensureMobileGamepadInit(this)
     attachGamepad(this, { confirm: () => this.retry(), cancel: () => this.toTitle() })
   }
 
