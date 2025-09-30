@@ -5,7 +5,7 @@ import { evolveWeapon } from '../systems/inventory'
 import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel, computeEvolution } from '../systems/items'
 import { getOptions } from '../systems/options'
 import { runState } from '../systems/runState'
-import { attachGamepad } from '../systems/gamepad'
+import { attachGamepad, ensureGamepadProbe } from '../systems/gamepad'
 import { audio } from '../systems/audio'
 import type { InventoryState } from '../systems/inventory'
 
@@ -260,6 +260,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Gamepad setup
     this.input.gamepad?.once('connected', () => {})
+    ensureGamepadProbe(this)
 
     // Pause wiring: ESC or P opens Pause
     const openPause = () => {
@@ -273,6 +274,14 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', openPause)
     this.input.keyboard?.on('keydown-P', openPause)
     attachGamepad(this, { pause: openPause })
+
+    // Mobile pause button overlay (top-right)
+    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
+    if (isMobile) {
+      const btn = this.add.text(this.scale.width - 10, 8, 'II', { fontFamily:'monospace', fontSize:'12px', color:'#ffffff', backgroundColor:'#111144', padding:{ x:4, y:2 } }).setOrigin(1,0).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
+      btn.on('pointerdown', openPause)
+      this.scale.on('resize', () => btn.setPosition(this.scale.width - 10, 8))
+    }
 
     this.game.events.on('pause-closed', () => {
       // Resume time and physics

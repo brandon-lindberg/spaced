@@ -79,4 +79,28 @@ export function attachGamepadDebug(scene: Phaser.Scene) {
   scene.events.once('destroy', detach)
 }
 
+// iOS/Safari sometimes doesn't fire 'gamepadconnected' reliably; probe periodically.
+export function ensureGamepadProbe(scene: Phaser.Scene) {
+  const onNativeConnected = () => {
+    try { scene.registry.set('toast', 'Controller detected') } catch {}
+  }
+  window.addEventListener('gamepadconnected', onNativeConnected, { once: true })
+  let seen = false
+  const poll = () => {
+    try {
+      const pads = (navigator as any)?.getGamepads?.() || []
+      const any = pads && Array.from(pads).some((p: any) => !!p)
+      if (any && !seen) {
+        seen = true
+        const first = Array.from(pads).find((p: any) => !!p)
+        try { (scene.input.gamepad as any)?.emit?.('connected', first) } catch {}
+        try { scene.registry.set('toast', 'Controller detected') } catch {}
+      }
+    } catch {}
+  }
+  const timer = scene.time.addEvent({ delay: 800, loop: true, callback: poll })
+  scene.events.once('shutdown', () => { try { timer.remove(false) } catch {}; window.removeEventListener('gamepadconnected', onNativeConnected) })
+  scene.events.once('destroy', () => { try { timer.remove(false) } catch {}; window.removeEventListener('gamepadconnected', onNativeConnected) })
+}
+
 
