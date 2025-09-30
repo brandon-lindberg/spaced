@@ -333,7 +333,7 @@ export default class GameScene extends Phaser.Scene {
       const mapX = inv.invertX ? -rawX : rawX
       // Baseline: up on most sticks is negative rawY; we flip sign so natural (invertY=false) means up -> up
       const baselineY = -rawY
-      const mapY = inv.invertY ? -baselineY : baselineY
+      const mapY = inv.invertY ? baselineY : -baselineY
       if (Math.hypot(mapX, mapY) > 0.2) {
         vx = mapX
         vy = mapY
