@@ -15,6 +15,10 @@ export default class HUDScene extends Phaser.Scene {
   }
 
   create() {
+    // Controller detected toast
+    this.input.gamepad?.once('connected', () => {
+      this.registry.set('toast', 'Controller detected')
+    })
     this.scene.bringToTop()
 
     // Minimal icon set

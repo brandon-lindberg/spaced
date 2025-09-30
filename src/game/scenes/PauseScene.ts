@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { getOptions, setOptions } from '../systems/options'
+import { attachGamepad, attachGamepadDebug } from '../systems/gamepad'
 
 export default class PauseScene extends Phaser.Scene {
   constructor() {
@@ -21,27 +22,67 @@ export default class PauseScene extends Phaser.Scene {
 
     const mkToggle = (label: string, getVal: () => boolean, setVal: (b: boolean) => void, y: number) => {
       const t = this.add.text(width / 2, height / 2 + y, `${label}: ${getVal() ? 'ON' : 'OFF'}`, {
-        fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x: 4, y: 2 }
+        fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 }
       }).setOrigin(0.5)
       t.setInteractive({ useHandCursor: true })
       const toggle = () => { setVal(!getVal()); t.setText(`${label}: ${getVal() ? 'ON' : 'OFF'}`); this.game.events.emit('options-updated') }
       t.on('pointerdown', toggle)
+      return { node: t, toggle }
     }
-    mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -2)
-    mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 12)
-    const vol = this.add.text(width / 2, height / 2 + 28, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x: 4, y: 2 } }).setOrigin(0.5)
+    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -2)
+    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 12)
+    const vol = this.add.text(width / 2, height / 2 + 30, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
     vol.setInteractive({ useHandCursor: true })
-    vol.on('pointerdown', () => {
+    const incVol = () => {
       const o = getOptions()
       const nextMusic = Math.max(0, Math.min(1, o.musicVolume + 0.1))
       const nextSfx = Math.max(0, Math.min(1, o.sfxVolume + 0.1))
-      setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx })
-      vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`)
-      this.game.events.emit('options-updated')
-    })
+      setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
+    }
+    const decVol = () => {
+      const o = getOptions()
+      const nextMusic = Math.max(0, Math.min(1, o.musicVolume - 0.1))
+      const nextSfx = Math.max(0, Math.min(1, o.sfxVolume - 0.1))
+      setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
+    }
+    vol.on('pointerdown', incVol)
+    const volDown = this.add.text(width / 2, height / 2 + 46, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    volDown.setInteractive({ useHandCursor: true })
+    volDown.on('pointerdown', decVol)
+
+    const widgets = [wShake.node, wFps.node, vol, volDown]
+    let sel = 0
+    const highlight = () => {
+      widgets.forEach((w, i) => w.setStyle({ backgroundColor: i === sel ? '#3355ff' : '#111144', color: i === sel ? '#ffffcc' : '#ffffff' }))
+    }
+    highlight()
+    // Focus outline for accessibility
+    const focus = this.add.rectangle(0, 0, 0, 0, 0x000000, 0).setStrokeStyle(1, 0xffff66).setDepth(999)
+    const updateFocus = () => {
+      const w = widgets[sel]
+      focus.setPosition(w.getCenter().x, w.getCenter().y)
+      focus.setSize(w.width + 6, w.height + 6)
+    }
+    updateFocus()
+
     const close = () => { this.game.events.emit('pause-closed'); this.scene.stop(); this.scene.resume('Game') }
     this.input.keyboard?.once('keydown-P', close)
     this.input.keyboard?.once('keydown-ESC', close)
+    attachGamepad(this, {
+      pause: close,
+      cancel: close,
+      up: () => { sel = (sel + widgets.length - 1) % widgets.length; highlight(); updateFocus() },
+      down: () => { sel = (sel + 1) % widgets.length; highlight(); updateFocus() },
+      left: () => { if (widgets[sel] === vol || widgets[sel] === volDown) decVol() },
+      right: () => { if (widgets[sel] === vol || widgets[sel] === volDown) incVol() },
+      confirm: () => {
+        if (widgets[sel] === wShake.node) wShake.toggle()
+        else if (widgets[sel] === wFps.node) wFps.toggle()
+        else if (widgets[sel] === vol) incVol()
+        else if (widgets[sel] === volDown) decVol()
+      },
+    })
+    attachGamepadDebug(this)
   }
 }
 

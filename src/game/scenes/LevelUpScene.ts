@@ -1,9 +1,12 @@
 import Phaser from 'phaser'
+import { attachGamepad } from '../systems/gamepad'
 
 export type LevelUpChoice = { key: string; label: string; color: string }
 
 export default class LevelUpScene extends Phaser.Scene {
   private choices: LevelUpChoice[] = []
+  private selected = 0
+  private choiceTexts: Phaser.GameObjects.Text[] = []
 
   constructor() {
     super('LevelUp')
@@ -41,6 +44,7 @@ export default class LevelUpScene extends Phaser.Scene {
         ]
 
     const startY = height / 2 + 4
+    this.choiceTexts = []
     visibleChoices.forEach((c, i) => {
       const y = startY + i * 14
       const t = this.add.text(width / 2, y, c.label, {
@@ -75,6 +79,29 @@ export default class LevelUpScene extends Phaser.Scene {
       t.on('pointerover', explain)
       t.on('pointerout', clearTip)
       t.on('pointerdown', () => this.choose(c.key))
+      this.choiceTexts.push(t)
+    })
+
+    const applyHighlight = () => {
+      this.choiceTexts.forEach((t, i) => t.setStyle({ backgroundColor: i === this.selected ? '#111111' : '#000000' }))
+    }
+    applyHighlight()
+
+    const moveSel = (dir: number) => {
+      const n = this.choiceTexts.length
+      if (!n) return
+      this.selected = (this.selected + dir + n) % n
+      applyHighlight()
+    }
+
+    attachGamepad(this, {
+      up: () => moveSel(-1),
+      down: () => moveSel(1),
+      confirm: () => {
+        const c = visibleChoices[this.selected]
+        if (c) this.choose(c.key)
+      },
+      cancel: () => undefined,
     })
   }
 
