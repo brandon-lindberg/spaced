@@ -60,6 +60,12 @@ export default class OptionsScene extends Phaser.Scene {
     }
     clampScroll()
     this.input.on('wheel', (_p: any, _dx: number, dy: number) => { content.y -= dy * 0.3; clampScroll() })
+    // Mobile swipe to scroll
+    let lastY = 0; let dragging = false
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { if (panel.getBounds().contains(p.x,p.y)) { dragging = true; lastY = p.y } })
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => { if (!dragging) return; const dy = p.y - lastY; lastY = p.y; content.y += dy; clampScroll() })
+    const endDrag = () => { dragging = false }
+    this.input.on('pointerup', endDrag); this.input.on('pointerupoutside', endDrag)
 
     let sel = 0
     type Control = { node: Phaser.GameObjects.Text; onConfirm: () => void }
@@ -100,8 +106,6 @@ export default class OptionsScene extends Phaser.Scene {
     }
     updateFocus()
     attachGamepadDebug(this)
-    // Ensure mobile/iOS controllers detected
-    try { (this.game as any); } finally { /* noop */ }
   }
 
   // moved to OptionsGamepad scene
