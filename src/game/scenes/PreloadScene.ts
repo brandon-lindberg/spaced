@@ -6,6 +6,22 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   preload() {
+    // Simple loading UI
+    const { width, height } = this.scale
+    const title = this.add.text(width/2, height/2 - 16, 'Loading…', { fontFamily:'monospace', fontSize:'12px', color:'#ffffff' }).setOrigin(0.5)
+    const barW = 160, barH = 8
+    const barBg = this.add.rectangle(width/2, height/2 + 4, barW, barH, 0x111144).setOrigin(0.5)
+    const bar = this.add.rectangle(width/2 - barW/2, height/2 + 4, 1, barH, 0x3355ff).setOrigin(0,0.5)
+    const pct = this.add.text(width/2, height/2 + 18, '0%', { fontFamily:'monospace', fontSize:'10px', color:'#cccccc' }).setOrigin(0.5)
+    this.load.on('progress', (v: number) => {
+      const w = Math.max(1, Math.floor(barW * v))
+      bar.width = w
+      pct.setText(`${Math.round(v*100)}%`)
+    })
+    this.load.once('complete', () => {
+      // brief delay so users can perceive completion
+      this.time.delayedCall(100, () => { this.scene.start('Menu') })
+    })
     // Load placeholder music from public/ so Netlify serves directly
     this.load.audio('bgm', 'audio/Nikkei.mp3')
     // Generate placeholder textures for all icons and common sprites
@@ -70,7 +86,7 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.start('Menu')
+    // start moved to loader complete
   }
 }
 

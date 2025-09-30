@@ -278,9 +278,11 @@ export default class GameScene extends Phaser.Scene {
     // Mobile pause button overlay (top-right)
     const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
     if (isMobile) {
-      const btn = this.add.text(this.scale.width - 10, 8, 'II', { fontFamily:'monospace', fontSize:'12px', color:'#ffffff', backgroundColor:'#111144', padding:{ x:4, y:2 } }).setOrigin(1,0).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
+      const place = (t: Phaser.GameObjects.Text) => t.setPosition(this.scale.width - 10, this.scale.height - 26)
+      const btn = this.add.text(0, 0, 'II', { fontFamily:'monospace', fontSize:'12px', color:'#ffffff', backgroundColor:'#111144', padding:{ x:4, y:2 } }).setOrigin(1,0).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
+      place(btn)
       btn.on('pointerdown', openPause)
-      this.scale.on('resize', () => btn.setPosition(this.scale.width - 10, 8))
+      this.scale.on('resize', () => place(btn))
     }
 
     this.game.events.on('pause-closed', () => {

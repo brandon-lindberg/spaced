@@ -85,6 +85,10 @@ export default class PauseScene extends Phaser.Scene {
         else if (widgets[sel] === volDown) decVol()
       },
     })
+    // Mobile tap-to-close anywhere outside panel
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (!panel.getBounds().contains(p.x, p.y)) close()
+    })
     attachGamepadDebug(this)
   }
 }
