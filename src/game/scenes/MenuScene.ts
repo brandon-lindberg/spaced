@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { getBankGold } from '../systems/storage'
-import { attachGamepad, attachGamepadDebug, ensureGamepadProbe } from '../systems/gamepad'
+import { attachGamepad, attachGamepadDebug, ensureGamepadProbe, ensureMobileGamepadInit } from '../systems/gamepad'
 //
 
 export default class MenuScene extends Phaser.Scene {
@@ -75,6 +75,7 @@ export default class MenuScene extends Phaser.Scene {
       confirm: () => sel === 0 ? start() : this.scene.start('Options'),
     })
     attachGamepadDebug(this)
+    ensureMobileGamepadInit(this)
     ensureGamepadProbe(this)
 
     // Show toast when a controller connects
