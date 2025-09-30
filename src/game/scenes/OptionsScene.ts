@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { getOptions, setOptions } from '../systems/options'
-import { attachGamepad, attachGamepadDebug } from '../systems/gamepad'
+import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
 
 export default class OptionsScene extends Phaser.Scene {
   constructor() { super('Options') }
@@ -38,10 +38,10 @@ export default class OptionsScene extends Phaser.Scene {
     // Gamepad mapping (confirm/cancel/start/select)
     const gpHdr = this.add.text(viewport.width/2, 68, 'Gamepad', { fontFamily:'monospace', fontSize:'11px', color:'#ffffff'}).setOrigin(0.5,0)
     const invertXBtn = this.add.text(viewport.width/2 - 70, 86, `Invert X: ${getOptions().gamepad?.invertX ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
-    const toggleInvertX = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:true }; const gp = { ...cur, invertX: !cur.invertX }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertXBtn.setText(`Invert X: ${gp.invertX ? 'ON' : 'OFF'}`) }
+    const toggleInvertX = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:false }; const gp = { ...cur, invertX: !cur.invertX }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertXBtn.setText(`Invert X: ${gp.invertX ? 'ON' : 'OFF'}`) }
     invertXBtn.on('pointerdown', toggleInvertX)
     const invertYBtn = this.add.text(viewport.width/2 + 70, 86, `Invert Y: ${getOptions().gamepad?.invertY ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
-    const toggleInvertY = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:true }; const gp = { ...cur, invertY: !cur.invertY }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertYBtn.setText(`Invert Y: ${gp.invertY ? 'ON' : 'OFF'}`) }
+    const toggleInvertY = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:false }; const gp = { ...cur, invertY: !cur.invertY }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertYBtn.setText(`Invert Y: ${gp.invertY ? 'ON' : 'OFF'}`) }
     invertYBtn.on('pointerdown', toggleInvertY)
     const mapBtn = this.add.text(viewport.width/2, 108, 'Gamepad Controls…', { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
     mapBtn.on('pointerdown', () => this.scene.start('OptionsGamepad'))
@@ -105,6 +105,7 @@ export default class OptionsScene extends Phaser.Scene {
       focus.clear(); focus.lineStyle(1,0xffff66,1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
     }
     updateFocus()
+    ensureMobileGamepadInit(this)
     attachGamepadDebug(this)
   }
 

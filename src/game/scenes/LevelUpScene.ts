@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { attachGamepad } from '../systems/gamepad'
+import { attachGamepad, ensureMobileGamepadInit } from '../systems/gamepad'
 
 export type LevelUpChoice = { key: string; label: string; color: string }
 
@@ -94,6 +94,7 @@ export default class LevelUpScene extends Phaser.Scene {
       applyHighlight()
     }
 
+    ensureMobileGamepadInit(this)
     attachGamepad(this, {
       up: () => moveSel(-1),
       down: () => moveSel(1),

@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { getOptions, setOptions } from '../systems/options'
-import { attachGamepad, attachGamepadDebug } from '../systems/gamepad'
+import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
 
 export default class PauseScene extends Phaser.Scene {
   constructor() {
@@ -89,6 +89,7 @@ export default class PauseScene extends Phaser.Scene {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (!panel.getBounds().contains(p.x, p.y)) close()
     })
+    ensureMobileGamepadInit(this)
     attachGamepadDebug(this)
   }
 }
