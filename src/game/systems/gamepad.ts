@@ -52,6 +52,8 @@ export function attachGamepadDebug(scene: Phaser.Scene) {
     try { if ((import.meta as any)?.env?.DEV) return true } catch {}
     try { if (typeof window !== 'undefined' && window.location && window.location.hash.includes('gpdebug')) return true } catch {}
     try { if (typeof localStorage !== 'undefined' && localStorage.getItem('spaced.gpdebug') === '1') return true } catch {}
+    // Auto-enable on mobile for easier debugging
+    try { if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return true } catch {}
     return false
   }
   if (!debugOn()) return
@@ -113,8 +115,8 @@ export function ensureMobileGamepadInit(scene: Phaser.Scene) {
   const storageKey = 'spaced.gamepad.mobile.initialized'
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem(storageKey) === '1') {
-      // Already initialized, just poll gamepads to ensure plugin is active
-      try { navigator.getGamepads() } catch {}
+      // Already initialized, ensure manual polling is active
+      startMobileGamepadPolling(scene)
       return
     }
   } catch {}
@@ -146,6 +148,9 @@ export function ensureMobileGamepadInit(scene: Phaser.Scene) {
       if (connected.length > 0) {
         scene.registry.set('toast', 'Controller ready!')
         console.log('[Mobile Gamepad Init] Found controllers:', connected)
+        
+        // Start manual polling for mobile
+        startMobileGamepadPolling(scene)
         
         // Manually trigger Phaser's gamepad connected event
         connected.forEach(pad => {
@@ -187,6 +192,83 @@ export function ensureMobileGamepadInit(scene: Phaser.Scene) {
   }
   scene.events.once('shutdown', cleanup)
   scene.events.once('destroy', cleanup)
+}
+
+// Mobile browsers need manual polling of gamepad state
+function startMobileGamepadPolling(scene: Phaser.Scene) {
+  // Check if already polling (global flag)
+  if ((window as any).__spacedGamepadPolling) {
+    console.log('[Mobile Gamepad Poll] Already running globally')
+    return
+  }
+  (window as any).__spacedGamepadPolling = true
+  
+  // Track previous button states to detect changes
+  const previousButtonStates = new Map<number, boolean[]>()
+  
+  const poll = () => {
+    try {
+      const pads = navigator.getGamepads()
+      
+      for (let i = 0; i < pads.length; i++) {
+        const pad = pads[i]
+        if (!pad) continue
+        
+        const prevStates = previousButtonStates.get(i) || []
+        const currentStates: boolean[] = []
+        
+        // Check each button
+        pad.buttons.forEach((button, btnIndex) => {
+          const isPressed = button.pressed
+          currentStates[btnIndex] = isPressed
+          
+          // Detect button press (was not pressed, now is pressed)
+          if (isPressed && !prevStates[btnIndex]) {
+            console.log('[Mobile Gamepad Poll] Button pressed:', btnIndex, 'on gamepad', i)
+            
+            // Get all running scenes and emit to each
+            const game = scene.game
+            const sceneManager = game.scene
+            
+            sceneManager.scenes.forEach((s: Phaser.Scene) => {
+              if (s.scene.isActive() && s.input.gamepad) {
+                try {
+                  // Create mock Phaser objects for the event
+                  const mockButton = { index: btnIndex, value: button.value, pressed: true }
+                  // Try to use existing Phaser pad or create a mock
+                  const phaserPad = s.input.gamepad.gamepads?.[i] || pad as any
+                  
+                  s.input.gamepad.emit('down', phaserPad, mockButton)
+                } catch (err) {
+                  console.warn('[Mobile Gamepad Poll] Error emitting to scene:', s.scene.key, err)
+                }
+              }
+            })
+          }
+        })
+        
+        previousButtonStates.set(i, currentStates)
+      }
+    } catch (err) {
+      console.warn('[Mobile Gamepad Poll] Error polling:', err)
+    }
+  }
+  
+  // Poll at 60fps
+  const timer = scene.time.addEvent({ delay: 16, loop: true, callback: poll })
+  
+  // Clean up when game ends (not per-scene)
+  const cleanup = () => {
+    try { timer.remove(false) } catch {}
+    previousButtonStates.clear()
+    delete (window as any).__spacedGamepadPolling
+    console.log('[Mobile Gamepad Poll] Stopped')
+  }
+  
+  // Only clean up on game destroy, not scene changes
+  scene.game.events.once('destroy', cleanup)
+  
+  console.log('[Mobile Gamepad Poll] Started manual polling globally')
 }
 
 
