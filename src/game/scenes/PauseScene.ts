@@ -11,7 +11,10 @@ export default class PauseScene extends Phaser.Scene {
     // Notify game that pause started (for timer adjustments)
     this.game.events.emit('pause-opened')
     const { width, height } = this.scale
-    const text = this.add.text(width / 2, height / 2 - 20, 'Paused', {
+    // Panel
+    const panel = this.add.rectangle(width/2, height/2, 220, 140, 0x0b0e20, 0.9).setOrigin(0.5)
+    panel.setStrokeStyle(1, 0x3355ff, 1)
+    const text = this.add.text(width / 2, height / 2 - 40, 'Paused', {
       fontFamily: 'monospace',
       fontSize: '10px',
       color: '#ffffff',
@@ -29,9 +32,9 @@ export default class PauseScene extends Phaser.Scene {
       t.on('pointerdown', toggle)
       return { node: t, toggle }
     }
-    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -2)
-    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 12)
-    const vol = this.add.text(width / 2, height / 2 + 30, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -24)
+    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 0)
+    const vol = this.add.text(width / 2, height / 2 + 28, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
     vol.setInteractive({ useHandCursor: true })
     const incVol = () => {
       const o = getOptions()
@@ -46,7 +49,7 @@ export default class PauseScene extends Phaser.Scene {
       setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
     }
     vol.on('pointerdown', incVol)
-    const volDown = this.add.text(width / 2, height / 2 + 46, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    const volDown = this.add.text(width / 2, height / 2 + 56, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
     volDown.setInteractive({ useHandCursor: true })
     volDown.on('pointerdown', decVol)
 
@@ -57,11 +60,11 @@ export default class PauseScene extends Phaser.Scene {
     }
     highlight()
     // Focus outline for accessibility
-    const focus = this.add.rectangle(0, 0, 0, 0, 0x000000, 0).setStrokeStyle(1, 0xffff66).setDepth(999)
+    const focus = this.add.graphics().setDepth(999)
     const updateFocus = () => {
       const w = widgets[sel]
-      focus.setPosition(w.getCenter().x, w.getCenter().y)
-      focus.setSize(w.width + 6, w.height + 6)
+      const b = w.getBounds()
+      focus.clear(); focus.lineStyle(1,0xffff66,1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
     }
     updateFocus()
 

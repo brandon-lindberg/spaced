@@ -11,18 +11,22 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
-    const title = this.add.text(width / 2, height / 2 - 24, 'Spaced', {
+    const title = this.add.text(width / 2, height / 2 - 70, 'Spaced', {
       fontFamily: 'monospace',
       fontSize: '24px',
       color: '#ffffff',
     })
-    title.setOrigin(0.5)
+    title.setOrigin(0.5).setScrollFactor(0)
 
-    // Buttons: Start Game, Options
-    const startBtn = this.add.rectangle(width / 2, height / 2 + 2, 140, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    const startTxt = this.add.text(startBtn.x, startBtn.y, 'Start Game', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5)
-    const optBtn = this.add.rectangle(width / 2, height / 2 + 24, 140, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    const optTxt = this.add.text(optBtn.x, optBtn.y, 'Options', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5)
+    // Panel container
+    const panel = this.add.rectangle(width / 2, height / 2 + 24, 220, 100, 0x0b0e20, 0.85).setOrigin(0.5)
+    panel.setStrokeStyle(1, 0x3355ff, 1).setScrollFactor(0)
+
+    // Buttons: Start Game, Options (vertical list)
+    const startBtn = this.add.rectangle(width / 2, height / 2 + 6, 180, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0)
+    const startTxt = this.add.text(startBtn.x, startBtn.y, 'Start Game', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0)
+    const optBtn = this.add.rectangle(width / 2, height / 2 + 30, 180, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0)
+    const optTxt = this.add.text(optBtn.x, optBtn.y, 'Options', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0)
 
     const bank = this.add.text(6, height - 14, `Bank: ${getBankGold()}g`, {
       fontFamily: 'monospace',
@@ -58,11 +62,11 @@ export default class MenuScene extends Phaser.Scene {
       on(optBtn, optTxt, sel === 1)
     }
     highlight()
-    const focus = this.add.rectangle(0,0,0,0,0x000000,0).setStrokeStyle(1,0xffff66).setDepth(999)
+    const focus = this.add.graphics().setDepth(999).setScrollFactor(0)
     const updateFocus = () => {
       const w = sel===0?startTxt:optTxt
-      focus.setPosition(w.getCenter().x, w.getCenter().y)
-      focus.setSize(w.width+6, w.height+6)
+      const b = w.getBounds()
+      focus.clear(); focus.lineStyle(1, 0xffff66, 1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
     }
     updateFocus()
     attachGamepad(this, {

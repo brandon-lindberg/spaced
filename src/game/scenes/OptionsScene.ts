@@ -7,14 +7,23 @@ export default class OptionsScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
-    this.add.text(width/2, height/2 - 30, 'Options', { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' }).setOrigin(0.5)
+    const panel = this.add.rectangle(width/2, height/2, 240, 150, 0x0b0e20, 0.9).setOrigin(0.5)
+    panel.setStrokeStyle(1, 0x3355ff, 1)
+    this.add.text(width/2, height/2 - 64, 'Options', { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' }).setOrigin(0.5)
+
+    // Scrollable content area inside panel
+    const viewport = new Phaser.Geom.Rectangle(width/2 - 108, height/2 - 56, 216, 112)
+    const maskRect = this.add.rectangle(viewport.x, viewport.y, viewport.width, viewport.height, 0x000000, 0).setOrigin(0,0)
+    const mask = maskRect.createGeometryMask()
+    const content = this.add.container(viewport.x, viewport.y)
+    content.setMask(mask)
 
     const info = () => `Music ${Math.round(getOptions().musicVolume*100)}% | SFX ${Math.round(getOptions().sfxVolume*100)}%`
-    const volText = this.add.text(width/2, height/2 - 8, info(), { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x:4, y:2 } }).setOrigin(0.5)
-    const musicDown = this.add.text(width/2 - 52, height/2 + 8, 'Music -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x:4, y:2 } }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    const musicUp = this.add.text(width/2 + 52, height/2 + 8, 'Music +', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x:4, y:2 } }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    const sfxDown = this.add.text(width/2 - 52, height/2 + 22, 'SFX -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x:4, y:2 } }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    const sfxUp = this.add.text(width/2 + 52, height/2 + 22, 'SFX +', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000066', padding: { x:4, y:2 } }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+    const volText = this.add.text(viewport.width/2, 0, info(), { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5, 0)
+    const musicDown = this.add.text(viewport.width/2 - 70, 20, 'Music -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5,0).setInteractive({ useHandCursor: true })
+    const musicUp = this.add.text(viewport.width/2 + 70, 20, 'Music +', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5,0).setInteractive({ useHandCursor: true })
+    const sfxDown = this.add.text(viewport.width/2 - 70, 40, 'SFX -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5,0).setInteractive({ useHandCursor: true })
+    const sfxUp = this.add.text(viewport.width/2 + 70, 40, 'SFX +', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5,0).setInteractive({ useHandCursor: true })
 
     const apply = (m: number, s: number) => {
       setOptions({ musicVolume: Math.max(0, Math.min(1, m)), sfxVolume: Math.max(0, Math.min(1, s)) })
@@ -27,19 +36,30 @@ export default class OptionsScene extends Phaser.Scene {
     sfxUp.on('pointerdown', () => apply(getOptions().musicVolume, getOptions().sfxVolume + 0.1))
 
     // Gamepad mapping (confirm/cancel/start/select)
-    this.add.text(width/2, height/2 + 34, 'Gamepad', { fontFamily:'monospace', fontSize:'11px', color:'#ffffff'}).setOrigin(0.5)
-    const invertXBtn = this.add.text(width/2 - 56, height/2 + 46, `Invert X: ${getOptions().gamepad?.invertX ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5).setInteractive({ useHandCursor:true })
+    const gpHdr = this.add.text(viewport.width/2, 68, 'Gamepad', { fontFamily:'monospace', fontSize:'11px', color:'#ffffff'}).setOrigin(0.5,0)
+    const invertXBtn = this.add.text(viewport.width/2 - 70, 86, `Invert X: ${getOptions().gamepad?.invertX ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
     const toggleInvertX = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:true }; const gp = { ...cur, invertX: !cur.invertX }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertXBtn.setText(`Invert X: ${gp.invertX ? 'ON' : 'OFF'}`) }
     invertXBtn.on('pointerdown', toggleInvertX)
-    const invertYBtn = this.add.text(width/2 + 56, height/2 + 46, `Invert Y: ${getOptions().gamepad?.invertY ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5).setInteractive({ useHandCursor:true })
+    const invertYBtn = this.add.text(viewport.width/2 + 70, 86, `Invert Y: ${getOptions().gamepad?.invertY ? 'ON' : 'OFF'}`, { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
     const toggleInvertY = () => { const cur = getOptions().gamepad || { confirm:0, cancel:1, pauseStart:9, pauseSelect:8, invertX:false, invertY:true }; const gp = { ...cur, invertY: !cur.invertY }; setOptions({ gamepad: gp }); this.game.events.emit('options-updated'); invertYBtn.setText(`Invert Y: ${gp.invertY ? 'ON' : 'OFF'}`) }
     invertYBtn.on('pointerdown', toggleInvertY)
-    const mapBtn = this.add.text(width/2, height/2 + 62, 'Gamepad Controls…', { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#00000066', padding:{x:4,y:2} }).setOrigin(0.5).setInteractive({ useHandCursor:true })
+    const mapBtn = this.add.text(viewport.width/2, 108, 'Gamepad Controls…', { fontFamily:'monospace', fontSize:'10px', color:'#ffffff', backgroundColor:'#111144', padding:{x:6,y:3} }).setOrigin(0.5,0).setInteractive({ useHandCursor:true })
     mapBtn.on('pointerdown', () => this.scene.start('OptionsGamepad'))
 
-    // Back
-    const backBtn = this.add.text(width/2, height/2 + 80, 'Back', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+    const backBtn = this.add.text(viewport.width/2, 128, 'Back', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x:6, y:3 } }).setOrigin(0.5,0).setInteractive({ useHandCursor: true })
     backBtn.on('pointerdown', () => this.scene.start('Menu'))
+
+    // add to content container
+    content.add([volText, musicDown, musicUp, sfxDown, sfxUp, gpHdr, invertXBtn, invertYBtn, mapBtn, backBtn])
+    const getContentHeight = () => Math.max(...content.list.map((o: any) => (o.y as number) + ((o as any).height ?? 14)))
+    const clampScroll = () => {
+      const ch = getContentHeight()
+      const minY = viewport.y + Math.min(0, viewport.height - ch - 8)
+      const maxY = viewport.y
+      content.y = Phaser.Math.Clamp(content.y, minY, maxY)
+    }
+    clampScroll()
+    this.input.on('wheel', (_p: any, _dx: number, dy: number) => { content.y -= dy * 0.3; clampScroll() })
 
     let sel = 0
     type Control = { node: Phaser.GameObjects.Text; onConfirm: () => void }
@@ -55,17 +75,29 @@ export default class OptionsScene extends Phaser.Scene {
     ]
     const hi = () => controls.forEach((c,i)=> c.node.setColor(i===sel?'#ffffcc':'#ffffff'))
     hi()
+    const ensureVisible = () => {
+      const node = controls[sel].node
+      const ny = content.y + node.y
+      const top = viewport.y + 4
+      const bottom = viewport.y + viewport.height - 18
+      if (ny < top) { content.y += (top - ny); clampScroll() }
+      else if (ny > bottom) { content.y -= (ny - bottom); clampScroll() }
+    }
     attachGamepad(this, {
-      left: () => { sel = Math.max(0, sel-1); hi(); updateFocus() },
-      right: () => { sel = Math.min(controls.length-1, sel+1); hi(); updateFocus() },
-      up: () => { sel = Math.max(0, sel-1); hi(); updateFocus() },
-      down: () => { sel = Math.min(controls.length-1, sel+1); hi(); updateFocus() },
+      left: () => { sel = Math.max(0, sel-1); hi(); updateFocus(); ensureVisible() },
+      right: () => { sel = Math.min(controls.length-1, sel+1); hi(); updateFocus(); ensureVisible() },
+      up: () => { sel = Math.max(0, sel-1); hi(); updateFocus(); ensureVisible() },
+      down: () => { sel = Math.min(controls.length-1, sel+1); hi(); updateFocus(); ensureVisible() },
       confirm: () => { controls[sel].onConfirm() },
       cancel: () => this.scene.start('Menu'),
     })
     // clearer focus box
-    const focus = this.add.rectangle(0,0,0,0,0x000000,0).setStrokeStyle(1,0xffff66).setDepth(999)
-    const updateFocus = () => { const w = controls[sel].node; focus.setPosition(w.getCenter().x, w.getCenter().y); focus.setSize(w.width+6, w.height+6) }
+    const focus = this.add.graphics().setDepth(999)
+    const updateFocus = () => {
+      const w = controls[sel].node
+      const b = w.getBounds() // world-space bounds accounts for origin and containers
+      focus.clear(); focus.lineStyle(1,0xffff66,1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
+    }
     updateFocus()
     attachGamepadDebug(this)
   }
