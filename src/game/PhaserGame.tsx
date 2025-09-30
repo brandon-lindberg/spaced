@@ -4,6 +4,7 @@ import { BASE_WIDTH, BASE_HEIGHT, GAME_BACKGROUND_COLOR } from './config'
 import BootScene from './scenes/BootScene'
 import PreloadScene from './scenes/PreloadScene'
 import MenuScene from './scenes/MenuScene'
+import OptionsScene from './scenes/OptionsScene'
 import LobbyScene from './scenes/LobbyScene'
 import GameScene from './scenes/GameScene'
 import HUDScene from './scenes/HUDScene'
@@ -13,6 +14,7 @@ import PauseScene from './scenes/PauseScene'
 import GameOverScene from './scenes/GameOverScene'
 import VictoryScene from './scenes/VictoryScene'
 import LevelUpScene from './scenes/LevelUpScene'
+import OptionsGamepadScene from './scenes/OptionsGamepadScene'
 import { attachGameOverSmokeTest } from './dev/smokeGameOver'
 
 export default function PhaserGame() {
@@ -45,10 +47,15 @@ export default function PhaserGame() {
           debug: false,
         },
       },
+      input: {
+        gamepad: true,
+      },
       scene: [
         BootScene,
         PreloadScene,
         MenuScene,
+        OptionsScene,
+        OptionsGamepadScene,
         LobbyScene,
         GameScene,
         HUDScene,

@@ -5,6 +5,8 @@ import { evolveWeapon } from '../systems/inventory'
 import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel, computeEvolution } from '../systems/items'
 import { getOptions } from '../systems/options'
 import { runState } from '../systems/runState'
+import { attachGamepad } from '../systems/gamepad'
+import { audio } from '../systems/audio'
 import type { InventoryState } from '../systems/inventory'
 
 export default class GameScene extends Phaser.Scene {
@@ -114,6 +116,8 @@ export default class GameScene extends Phaser.Scene {
     this.hpCur = this.hpMax
     // Build background for current level
     this.setupBackgroundForLevel((runState.state?.level ?? 1))
+    audio.init(this)
+    audio.startMusic(this)
 
     const centerX = this.scale.width / 2
     const centerY = this.scale.height / 2
@@ -202,14 +206,19 @@ export default class GameScene extends Phaser.Scene {
       const next = cur + 1
       this.registry.set('xp', next)
       this.checkLevelProgress(next)
+      const elite = sprite.texture?.key === 'xp-gem-elite' || (sprite.getData && sprite.getData('kind') === 'xp-elite')
+      audio.sfxPickupXP(!!elite)
     })
     this.physics.add.overlap(this.player, this.goldGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
-      const isGold = (sprite.texture && sprite.texture.key === this.goldTextureKey) || (sprite.getData && sprite.getData('kind') === 'gold')
+      const isGold = (sprite.texture && (sprite.texture.key === this.goldTextureKey || sprite.texture.key === 'gold-coin-elite')) || (sprite.getData && sprite.getData('kind') === 'gold')
       if (!isGold) return
       sprite.destroy()
       const cur = (this.registry.get('gold') as number) || 0
-      this.registry.set('gold', cur + 1)
+      const add = sprite.texture?.key === 'gold-coin-elite' ? 1 : 1
+      this.registry.set('gold', cur + add)
+      const elite = sprite.texture?.key === 'gold-coin-elite'
+      audio.sfxPickupGold(!!elite)
     })
     this.physics.add.overlap(this.player, this.healthGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
@@ -217,12 +226,14 @@ export default class GameScene extends Phaser.Scene {
       const heal = Math.max(1, Math.ceil(this.hpMax * 0.2)) // 20% heal, min 1
       this.hpCur = Math.min(this.hpMax, this.hpCur + heal)
       this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      audio.sfxPickupHealth()
     })
     this.physics.add.overlap(this.player, this.powerupGroup, (_, pickup) => {
       const sprite = pickup as Phaser.Physics.Arcade.Sprite
       sprite.destroy()
       const label = this.applyPowerupReward()
       if (label) this.registry.set('toast', `Power-up: ${label}`)
+      audio.sfxPowerup()
     })
 
     // Player <-> enemy collision damage
@@ -261,6 +272,7 @@ export default class GameScene extends Phaser.Scene {
     }
     this.input.keyboard?.on('keydown-ESC', openPause)
     this.input.keyboard?.on('keydown-P', openPause)
+    attachGamepad(this, { pause: openPause })
 
     this.game.events.on('pause-closed', () => {
       // Resume time and physics
@@ -283,11 +295,16 @@ export default class GameScene extends Phaser.Scene {
     // Gamepad (left stick)
     const pad = this.input.gamepad?.getPad(0)
     if (pad) {
-      const gx = pad.axes.length > 0 ? pad.axes[0].getValue() : 0
-      const gy = pad.axes.length > 1 ? pad.axes[1].getValue() : 0
-      if (Math.hypot(gx, gy) > 0.2) {
-        vx = gx
-        vy = gy
+      const inv = getOptions().gamepad || { invertX: false, invertY: false }
+      const rawX = pad.axes.length > 0 ? pad.axes[0].getValue() : 0
+      const rawY = pad.axes.length > 1 ? pad.axes[1].getValue() : 0
+      const mapX = inv.invertX ? -rawX : rawX
+      // Baseline: up on most sticks is negative rawY; we flip sign so natural (invertY=false) means up -> up
+      const baselineY = -rawY
+      const mapY = inv.invertY ? -baselineY : baselineY
+      if (Math.hypot(mapX, mapY) > 0.2) {
+        vx = mapX
+        vy = mapY
       }
     }
     // Touch joystick
@@ -400,6 +417,7 @@ export default class GameScene extends Phaser.Scene {
         if (!this.bossActive) {
           this.spawnBoss(camCenter.x, camCenter.y)
           this.bossActive = true
+          audio.sfxBossSpawn()
         }
       } else {
         // Level 5: gauntlet
@@ -736,6 +754,8 @@ export default class GameScene extends Phaser.Scene {
           const oy = this.player!.y + Math.sin(baseRad) * (muzzle - back)
           this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
         }
+        const blasterLevel = (inv.weapons.find(w => w.key.includes('blaster'))?.level) || 1
+        audio.sfxShotBlaster(blasterLevel)
         const spread = this.spreadDeg || 10
         const fanShots = Math.max(1, Math.floor(this.multishot))
         if (fanShots > 1) {
@@ -759,6 +779,8 @@ export default class GameScene extends Phaser.Scene {
         const ox = this.player!.x + Math.cos(rad) * muzzle
         const oy = this.player!.y + Math.sin(rad) * muzzle
         this.spawnMissile(ox, oy, a)
+        const missilesLevel = (inv.weapons.find(w => w.key.includes('missile'))?.level) || 1
+        audio.sfxShotMissile(missilesLevel)
       })
     }
     // Orbs (staggered fire)
@@ -769,7 +791,11 @@ export default class GameScene extends Phaser.Scene {
         const muzzleOrb = 12
         const ox = this.player!.x + Math.cos(rad) * muzzleOrb
         const oy = this.player!.y + Math.sin(rad) * muzzleOrb
-        this.time.delayedCall(120, () => this.spawnOrb(ox, oy, a))
+        this.time.delayedCall(120, () => {
+          this.spawnOrb(ox, oy, a)
+          const orbLevel = (inv.weapons.find(w => w.key.includes('orb'))?.level) || 1
+          audio.sfxShotOrb(orbLevel)
+        })
       })
     }
     // Despawn far bullets
@@ -1025,6 +1051,8 @@ export default class GameScene extends Phaser.Scene {
     const scale = Math.max(0.5, radius / 16)
     ex.setScale(scale)
     this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
+    // Explosion SFX
+    audio.sfxExplosion()
   }
 
   private showHitSpark(x: number, y: number) {
@@ -1104,6 +1132,7 @@ export default class GameScene extends Phaser.Scene {
             xp.setData('kind', 'xp')
             this.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
           }
+          // Elite XP pickup tone has two-step chime on collect in handler
         } else {
           // Drop 5 gold coins for elite kill
           for (let i = 0; i < 5; i++) {
@@ -1232,6 +1261,7 @@ export default class GameScene extends Phaser.Scene {
     this.hurtCooldown = 0.8
     this.hpCur = Math.max(0, this.hpCur - dmg)
     this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      audio.sfxHurt()
     // Knockback player away from enemy
     const dxp = this.player.x - enemy.x
     const dyp = this.player.y - enemy.y
@@ -1263,6 +1293,7 @@ export default class GameScene extends Phaser.Scene {
     this.hurtCooldown = 0.8
     this.hpCur = Math.max(0, this.hpCur - dmg)
     this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      audio.sfxHurt()
     // Knockback away from projectile position
     const dxp = this.player.x - px
     const dyp = this.player.y - py
@@ -1955,6 +1986,7 @@ export default class GameScene extends Phaser.Scene {
       // Pause gameplay and freeze level timer
       this.scene.pause()
       this.time.timeScale = 0
+      audio.sfxLevelUp()
       // Build 3-of-N choices
       const pool = [
         { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
