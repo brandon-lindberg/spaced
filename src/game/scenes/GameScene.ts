@@ -122,18 +122,14 @@ export default class GameScene extends Phaser.Scene {
 
     const centerX = this.scale.width / 2
     const centerY = this.scale.height / 2
-    this.player = this.physics.add.sprite(centerX, centerY, '')
-    // Player hitbox tuning: slightly smaller than sprite for fair collisions
-    this.player.setCircle(3, 1, 1)
+    this.player = this.physics.add.sprite(centerX, centerY, 'player-ship-1')
     this.player.setCollideWorldBounds(false)
-
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0xffffff, 1)
-    gfx.fillRect(-4, -4, 8, 8)
-    const textureKey = 'player-square'
-    gfx.generateTexture(textureKey, 8, 8)
-    gfx.destroy()
-    this.player.setTexture(textureKey)
+    this.player.setScale(0.02734375) // Scale down to 28x28px (28/1024 = 0.02734375)
+    this.player.setOrigin(0.5, 0.5)
+    // Player hitbox tuning: use rectangle for better collision detection
+    this.player.body?.setSize(16, 16, true) // 16x16px rectangle for 28px ship
+    console.log('Player physics body created:', !!this.player.body)
+    console.log('Player body size:', this.player.body?.width, this.player.body?.height)
 
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15)
 
@@ -182,8 +178,34 @@ export default class GameScene extends Phaser.Scene {
       this.bonusLevelsUsed = b.levelsUsed ?? this.bonusLevelsUsed
       this.inlineExtraProjectiles = b.inlineExtra ?? this.inlineExtraProjectiles
     }
-    this.weaponCooldowns = {}
-    this.laserBeamAccum = 0
+    // Only initialize weapon cooldowns if they haven't been initialized yet
+    if (!this.weaponCooldowns || Object.keys(this.weaponCooldowns).length === 0) {
+      this.weaponCooldowns = {}
+      this.laserBeamAccum = 0
+      
+      // Initialize cooldowns for all weapons in inventory to prevent immediate firing
+      const currentInv = (this.registry.get('inv') as InventoryState) || createInventory()
+      console.log('[WEAPON DEBUG] Initializing weapon cooldowns for inventory:', currentInv.weapons.map(w => w.key))
+      // Initialize with proper cooldown values instead of 0
+      const initialCooldown = 1 / Math.max(0.1, this.fireRate)
+      for (const weapon of currentInv.weapons) {
+        if (weapon.key.includes('blaster')) {
+          this.weaponCooldowns['blaster'] = initialCooldown
+          console.log(`[WEAPON DEBUG] Initialized blaster cooldown to ${initialCooldown.toFixed(3)}s`)
+        }
+        if (weapon.key.includes('missile')) {
+          this.weaponCooldowns['missiles'] = initialCooldown
+          console.log(`[WEAPON DEBUG] Initialized missiles cooldown to ${initialCooldown.toFixed(3)}s`)
+        }
+        if (weapon.key.includes('orb')) {
+          this.weaponCooldowns['orbs'] = initialCooldown
+          console.log(`[WEAPON DEBUG] Initialized orbs cooldown to ${initialCooldown.toFixed(3)}s`)
+        }
+      }
+      console.log('[WEAPON DEBUG] Final weapon cooldowns:', this.weaponCooldowns)
+    } else {
+      console.log('[WEAPON DEBUG] Weapon cooldowns already initialized, skipping reinitialization')
+    }
 
     // Pickups
     this.createXPGemTexture(this.xpTextureKey)
@@ -357,6 +379,12 @@ export default class GameScene extends Phaser.Scene {
     this.lastMoveY = vy / len
     this.player.setVelocity(this.lastMoveX * speed, this.lastMoveY * speed)
 
+    // Rotate player based on movement direction (front of ship is top of image)
+    if (this.player && Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1) {
+      const angle = Math.atan2(this.lastMoveY, this.lastMoveX) + Math.PI / 2
+      this.player.setRotation(angle)
+    }
+
     const cam = this.cameras.main
     if (this.bgFar) {
       this.bgFar.tilePositionX = cam.scrollX * 0.1
@@ -393,7 +421,7 @@ export default class GameScene extends Phaser.Scene {
     const targetCap = Math.floor(capBase * this.spawnCapScale[this.qualityLevel])
     const camCenter = this.getCameraCenter()
 
-    while (!this.bossActive && this.spawnAccumulator >= 1 && activeEnemies + 1 <= targetCap) {
+    while (this.remainingSec > 0 && this.spawnAccumulator >= 1 && activeEnemies + 1 <= targetCap) {
       this.spawnAccumulator -= 1
       this.spawnEnemyVariant(camCenter.x, camCenter.y, elapsedSec)
     }
@@ -705,6 +733,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) {
       this.missileGroup = this.physics.add.group({ maxSize: 120 })
       this.physics.add.overlap(this.missileGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
+      console.log('[MISSILE DEBUG] Created new missile group')
     }
     if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) {
       this.orbGroup = this.physics.add.group({ maxSize: 90 })
@@ -769,14 +798,59 @@ export default class GameScene extends Phaser.Scene {
     const hasBlaster = has('blaster') || has('scatter-blaster') || has('pulse-blaster')
     const hasMissiles = has('missiles') || has('cluster-missiles')
     const hasOrbs = has('orb') || has('nova-orb')
+    
+    // Debug logging for weapon detection
+    if (inv.weapons.length > 1) {
+      console.log(`[WEAPON DEBUG] Current weapons: ${inv.weapons.map(w => w.key).join(', ')}`)
+      console.log(`[WEAPON DEBUG] Has blaster: ${hasBlaster}, missiles: ${hasMissiles}, orbs: ${hasOrbs}`)
+      console.log(`[WEAPON DEBUG] Fire rate: ${this.fireRate}`)
+    }
 
     // Per-weapon cooldowns so weapons don't rely on each other
     const step = (key: string, rate: number, fire: () => void) => {
-      const cur = (this.weaponCooldowns[key] ?? 0) - dt
+      const oldCooldown = this.weaponCooldowns[key] ?? 0
+      const cur = oldCooldown - dt
       this.weaponCooldowns[key] = cur
+      
+      // Log if cooldown was unexpectedly reset
+      if (inv.weapons.length > 1 && Math.abs(oldCooldown - cur) > dt * 2) {
+        console.log(`[WEAPON DEBUG] ${key} cooldown unexpectedly changed from ${oldCooldown.toFixed(3)}s to ${cur.toFixed(3)}s`)
+      }
+      
+      // Log when cooldown gets very close to 0
+      if (inv.weapons.length > 1 && cur <= 0.01 && cur > 0) {
+        console.log(`[WEAPON DEBUG] ${key} cooldown very close to 0: ${cur.toFixed(3)}s, about to fire!`)
+      }
+      
+      // Log if cooldown is unexpectedly high (might be reset)
+      if (inv.weapons.length > 1 && cur > 0.5 && oldCooldown < 0.1) {
+        console.log(`[WEAPON DEBUG] ${key} cooldown unexpectedly reset from ${oldCooldown.toFixed(3)}s to ${cur.toFixed(3)}s`)
+      }
       if (cur <= 0 && this.player) {
-        this.weaponCooldowns[key] = 1 / Math.max(0.1, rate)
+        const newCooldown = 1 / Math.max(0.1, rate)
+        this.weaponCooldowns[key] = newCooldown
+        console.log(`[WEAPON DEBUG] ${key} firing - rate: ${rate}, new cooldown: ${newCooldown.toFixed(3)}s, current fireRate: ${this.fireRate}`)
         fire()
+      } else if (cur <= 0 && !this.player) {
+        console.log(`[WEAPON DEBUG] ${key} ready to fire but player is null! cur: ${cur.toFixed(3)}s`)
+      } else if (inv.weapons.length > 1) {
+        // Extra logging for all weapons when we have multiple weapons
+        if (key === 'missiles') {
+          console.log(`[MISSILE DEBUG] Cooldown: ${cur.toFixed(3)}s (rate: ${rate})`)
+        } else if (key === 'blaster') {
+          console.log(`[BLASTER DEBUG] Cooldown: ${cur.toFixed(3)}s (rate: ${rate})`)
+        } else if (key === 'orbs') {
+          console.log(`[ORB DEBUG] Cooldown: ${cur.toFixed(3)}s (rate: ${rate})`)
+        }
+        // Check if player is null when cooldown is ready
+        if (cur <= 0 && !this.player) {
+          console.log(`[WEAPON DEBUG] ${key} ready to fire but player is null!`)
+        }
+        // Log when cooldown reaches 0 or below
+        if (cur <= 0) {
+          console.log(`[WEAPON DEBUG] ${key} cooldown reached 0 or below: ${cur.toFixed(3)}s, player exists: ${!!this.player}`)
+          console.log(`[WEAPON DEBUG] About to fire ${key} - cur: ${cur.toFixed(3)}, rate: ${rate}`)
+        }
       }
     }
     const muzzle = 6
@@ -786,12 +860,13 @@ export default class GameScene extends Phaser.Scene {
         const baseAngle = this.getAimAngle()
         const baseRad = Phaser.Math.DegToRad(baseAngle)
         const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
+        console.log(`[BLASTER DEBUG] About to fire blaster - inlineCount: ${inlineCount}, multishot: ${this.multishot}`)
         for (let i = 0; i <= inlineCount; i++) {
           const back = i * 8
           const speedScale = 1 - Math.min(0.6, i * 0.12)
           const ox = this.player!.x + Math.cos(baseRad) * (muzzle - back)
           const oy = this.player!.y + Math.sin(baseRad) * (muzzle - back)
-          this.spawnBullet(ox, oy, baseAngle, 300 * speedScale)
+          this.spawnBullet(ox, oy, baseAngle, 300 * speedScale, 'blaster')
         }
         const blasterLevel = (inv.weapons.find(w => w.key.includes('blaster'))?.level) || 1
         audio.sfxShotBlaster(blasterLevel)
@@ -805,7 +880,7 @@ export default class GameScene extends Phaser.Scene {
             const rad = Phaser.Math.DegToRad(a)
             const ox = this.player!.x + Math.cos(rad) * muzzle
             const oy = this.player!.y + Math.sin(rad) * muzzle
-            this.spawnBullet(ox, oy, a)
+            this.spawnBullet(ox, oy, a, undefined, 'blaster')
           }
         }
       })
@@ -817,6 +892,7 @@ export default class GameScene extends Phaser.Scene {
         const rad = Phaser.Math.DegToRad(a)
         const ox = this.player!.x + Math.cos(rad) * muzzle
         const oy = this.player!.y + Math.sin(rad) * muzzle
+        console.log(`[MISSILE DEBUG] About to spawn missile at (${ox.toFixed(1)}, ${oy.toFixed(1)}) with angle ${a.toFixed(1)}°`)
         this.spawnMissile(ox, oy, a)
         const missilesLevel = (inv.weapons.find(w => w.key.includes('missile'))?.level) || 1
         audio.sfxShotMissile(missilesLevel)
@@ -830,6 +906,7 @@ export default class GameScene extends Phaser.Scene {
         const muzzleOrb = 12
         const ox = this.player!.x + Math.cos(rad) * muzzleOrb
         const oy = this.player!.y + Math.sin(rad) * muzzleOrb
+        console.log(`[ORB DEBUG] About to spawn orb at (${ox.toFixed(1)}, ${oy.toFixed(1)}) with angle ${a.toFixed(1)}°`)
         this.time.delayedCall(120, () => {
           this.spawnOrb(ox, oy, a)
           const orbLevel = (inv.weapons.find(w => w.key.includes('orb'))?.level) || 1
@@ -860,10 +937,22 @@ export default class GameScene extends Phaser.Scene {
           const dx = nearest.x - b.x, dy = nearest.y - b.y
           const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || 140
           const ang = Math.atan2(dy, dx)
+          const weaponType = (b as any).weaponType || 'unknown'
+          console.log(`[BULLET DEBUG] ${weaponType} bullet velocity changed from (${b.body!.velocity.x.toFixed(1)}, ${b.body!.velocity.y.toFixed(1)}) to (${(Math.cos(ang) * sp).toFixed(1)}, ${(Math.sin(ang) * sp).toFixed(1)})`)
           b.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp)
         }
       }
-      if (!Phaser.Geom.Rectangle.Contains(bounds, b.x, b.y)) b.disableBody(true, true)
+      if (!Phaser.Geom.Rectangle.Contains(bounds, b.x, b.y)) {
+        const weaponType = (b as any).weaponType || 'unknown'
+        if ((b as any).missile) {
+          console.log(`[MISSILE DEBUG] Missile culled by camera bounds at (${b.x.toFixed(1)}, ${b.y.toFixed(1)})`)
+        } else if ((b as any).orb) {
+          console.log(`[ORB DEBUG] Orb culled by camera bounds at (${b.x.toFixed(1)}, ${b.y.toFixed(1)})`)
+        } else {
+          console.log(`[BULLET DEBUG] ${weaponType} bullet culled by camera bounds at (${b.x.toFixed(1)}, ${b.y.toFixed(1)})`)
+        }
+        b.disableBody(true, true)
+      }
     }
 
     // Handle laser spiral independently so it fires even when blaster cooldown is active
@@ -907,7 +996,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private spawnBullet(x: number, y: number, angleDeg: number, speedOverride?: number) {
+  private spawnBullet(x: number, y: number, angleDeg: number, speedOverride?: number, weaponType?: string) {
     const tex = 'blaster-tex'
     this.ensureBulletAssets()
     if (!this.bullets || !(this as any).bullets?.children?.entries) return
@@ -929,21 +1018,36 @@ export default class GameScene extends Phaser.Scene {
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(b as any).damage = this.bulletDamage
+    ;(b as any).weaponType = weaponType || 'unknown'
+    
+    console.log(`[BULLET DEBUG] Spawned ${weaponType || 'unknown'} bullet at (${x.toFixed(1)}, ${y.toFixed(1)}) with speed ${speed}, angle ${angleDeg.toFixed(1)}°`)
+    console.log(`[BULLET DEBUG] Initial velocity: (${b.body!.velocity.x.toFixed(1)}, ${b.body!.velocity.y.toFixed(1)})`)
+    
     if (import.meta.env.DEV) {
       const dbg = this.add.rectangle(x, y, 2, 2, 0x00ff00, 0.6).setDepth(1000)
       this.tweens.add({ targets: dbg, alpha: 0, duration: 400, onComplete: () => dbg.destroy() })
     }
     // Auto-disable after 2s to avoid endless bullets
     this.time.delayedCall(2000, () => {
-      if (b.active) b.disableBody(true, true)
+      if (b.active) {
+        console.log(`[BULLET DEBUG] ${weaponType || 'unknown'} bullet auto-disabled after 2s at (${b.x.toFixed(1)}, ${b.y.toFixed(1)})`)
+        console.log(`[BULLET DEBUG] Final velocity: (${b.body!.velocity.x.toFixed(1)}, ${b.body!.velocity.y.toFixed(1)})`)
+        b.disableBody(true, true)
+      }
     })
   }
 
   private spawnMissile(x: number, y: number, angleDeg: number) {
     this.ensureBulletAssets()
-    if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) return
+    if (!this.missileGroup || !(this as any).missileGroup?.children?.entries) {
+      console.log('[MISSILE DEBUG] Missile group not available')
+      return
+    }
     const m = this.missileGroup.get(x, y, 'missile-tex') as Phaser.Physics.Arcade.Sprite
-    if (!m) return
+    if (!m) {
+      console.log('[MISSILE DEBUG] Failed to get missile from group')
+      return
+    }
     m.enableBody(true, x, y, true, true)
     m.setDepth(5)
     m.body?.setSize(5, 5, true)
@@ -953,16 +1057,31 @@ export default class GameScene extends Phaser.Scene {
     m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(m as any).damage = Math.max(1, Math.floor(this.bulletDamage * 1.5))
     ;(m as any).missile = true
-    this.time.delayedCall(3500, () => m.active && m.disableBody(true, true))
+    ;(m as any).weaponType = 'missile'
+    
+    console.log(`[MISSILE DEBUG] Spawned missile at (${x.toFixed(1)}, ${y.toFixed(1)}) with speed ${speed}, angle ${angleDeg.toFixed(1)}°`)
+    
+    this.time.delayedCall(3500, () => {
+      if (m.active) {
+        console.log('[MISSILE DEBUG] Missile lifetime expired, disabling')
+        m.disableBody(true, true)
+      }
+    })
   }
 
   private spawnOrb(x: number, y: number, angleDeg: number) {
     this.ensureBulletAssets()
-    if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) return
+    if (!this.orbGroup || !(this as any).orbGroup?.children?.entries) {
+      console.log('[ORB DEBUG] Orb group not available')
+      return
+    }
     let o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
     if (!o) {
       o = this.orbGroup.create(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
-      if (!o) return
+      if (!o) {
+        console.log('[ORB DEBUG] Failed to create orb')
+        return
+      }
       o.setActive(true).setVisible(true)
     }
     o.enableBody(true, x, y, true, true)
@@ -976,6 +1095,9 @@ export default class GameScene extends Phaser.Scene {
     ;(o as any).orb = true
     ;(o as any).exploded = false
     ;(o as any).bornUntil = this.time.now + 120
+    ;(o as any).weaponType = 'orb'
+    
+    console.log(`[ORB DEBUG] Spawned orb at (${x.toFixed(1)}, ${y.toFixed(1)}) with speed ${speed}, angle ${angleDeg.toFixed(1)}°`)
   }
 
   private explodeOrb(o: Phaser.Physics.Arcade.Sprite) {
@@ -983,6 +1105,7 @@ export default class GameScene extends Phaser.Scene {
     ;(o as any).exploded = true
     const radius = 28
     const cx = o.x, cy = o.y
+    console.log(`[ORB DEBUG] Orb exploding at (${cx.toFixed(1)}, ${cy.toFixed(1)}) with radius ${radius}`)
     this.showExplosion(cx, cy, radius)
     const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
     for (const e of children) {
@@ -1137,6 +1260,8 @@ export default class GameScene extends Phaser.Scene {
       return
     }
     const damage = (b as any).damage ?? 1
+    const weaponType = (b as any).weaponType || 'unknown'
+    console.log(`[BULLET DEBUG] ${weaponType} bullet hit enemy at (${b.x.toFixed(1)}, ${b.y.toFixed(1)}) for ${damage} damage`)
     const hp = ((e as any).hp ?? 2) - damage
     ;(e as any).hp = hp
     // Hit feedback (applies to blaster, laser shot, missiles, etc.)
@@ -2071,11 +2196,34 @@ export default class GameScene extends Phaser.Scene {
         if (key.startsWith('w-')) {
           const inv = (this.registry.get('inv') as InventoryState) || createInventory()
           const wKey = key.replace('w-', '') as any
+          console.log(`[WEAPON DEBUG] Adding new weapon: ${wKey}`)
           addWeapon(inv, wKey)
           this.registry.set('inv', inv)
           this.registry.set('inv-weapons', describeWeapons(inv))
         }
         this.recomputeEffectiveStats()
+        
+        // Reset ALL weapon cooldowns AFTER recomputeEffectiveStats to use the correct fireRate
+        if (key.startsWith('w-')) {
+          const inv = (this.registry.get('inv') as InventoryState) || createInventory()
+          const correctCooldown = 1 / Math.max(0.1, this.fireRate)
+          console.log(`[WEAPON DEBUG] Resetting all weapon cooldowns to ${correctCooldown.toFixed(3)}s (fireRate: ${this.fireRate})`)
+          
+          // Reset all existing weapon cooldowns
+          if (inv.weapons.some(w => w.key.includes('blaster'))) {
+            this.weaponCooldowns['blaster'] = correctCooldown
+            console.log(`[WEAPON DEBUG] Reset blaster cooldown to ${correctCooldown.toFixed(3)}s`)
+          }
+          if (inv.weapons.some(w => w.key.includes('missile'))) {
+            this.weaponCooldowns['missiles'] = correctCooldown
+            console.log(`[WEAPON DEBUG] Reset missiles cooldown to ${correctCooldown.toFixed(3)}s`)
+          }
+          if (inv.weapons.some(w => w.key.includes('orb'))) {
+            this.weaponCooldowns['orbs'] = correctCooldown
+            console.log(`[WEAPON DEBUG] Reset orbs cooldown to ${correctCooldown.toFixed(3)}s`)
+          }
+          console.log('[WEAPON DEBUG] Weapon cooldowns after adding new weapon:', this.weaponCooldowns)
+        }
         this.game.events.off('levelup-apply', applyOnce as any)
         // Resume gameplay and unfreeze level timer
         this.time.timeScale = 1

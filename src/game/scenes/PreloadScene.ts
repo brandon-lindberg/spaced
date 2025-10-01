@@ -24,6 +24,8 @@ export default class PreloadScene extends Phaser.Scene {
     })
     // Load placeholder music from public/ so Netlify serves directly
     this.load.audio('bgm', 'audio/Nikkei.mp3')
+    // Load player ship skin
+    this.load.image('player-ship-1', 'assets/player/player_ship_1.png')
     // Generate placeholder textures for all icons and common sprites
     const makeRect = (key: string, w: number, h: number, color: number) => {
       if (this.textures.exists(key)) return
