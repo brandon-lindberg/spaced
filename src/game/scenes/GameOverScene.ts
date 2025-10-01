@@ -73,6 +73,8 @@ export default class GameOverScene extends Phaser.Scene {
         this.registry.set('inv', snap.inv)
         this.registry.set('boss-hp', null)
         this.registry.set('bonuses', snap.bonuses)
+        // Use the checkpoint level for runState
+        runState.startLevel(snap.playerLevel, this.time.now)
       } else {
         // fallback - reset to level 1 if no checkpoint
         this.registry.set('level', 1)
@@ -82,10 +84,14 @@ export default class GameOverScene extends Phaser.Scene {
         this.registry.set('inv', createInventory())
         this.registry.set('boss-hp', null)
         this.registry.set('bonuses', null)
+        runState.startLevel(1, this.time.now)
       }
     }
     
-    runState.startLevel(lvl, this.time.now)
+    // Only call startLevel for level 1 case
+    if (lvl === 1) {
+      runState.startLevel(lvl, this.time.now)
+    }
     // restore HP state (full health on retry)
     this.registry.set('hp', { cur: hp.max, max: hp.max })
     // Stop any existing Game scene

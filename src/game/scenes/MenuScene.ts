@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { getBankGold } from '../systems/storage'
+import { createInventory } from '../systems/inventory'
 import { attachGamepad, attachGamepadDebug, ensureGamepadProbe, ensureMobileGamepadInit } from '../systems/gamepad'
 //
 
@@ -207,6 +208,28 @@ export default class MenuScene extends Phaser.Scene {
   private startLevel(level: number) {
     runState.newRun()
     runState.startLevel(level, this.time.now)
+    
+    // Create a checkpoint for level select so retry works properly
+    if (level > 1) {
+      const snapshot = {
+        playerLevel: level,
+        xp: 0,
+        xpToNext: 3,
+        gold: 0,
+        inv: createInventory(),
+        bonuses: {
+          fireRateMul: 1,
+          damage: 0,
+          multishot: 0,
+          speedMul: 1,
+          magnet: 0,
+          levelsUsed: 0,
+          inlineExtra: 0,
+        },
+      }
+      runState.setCheckpoint(level, snapshot)
+    }
+    
     this.scene.start('Game')
     this.scene.launch('HUD')
   }

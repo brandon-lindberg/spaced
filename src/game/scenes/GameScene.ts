@@ -305,8 +305,11 @@ export default class GameScene extends Phaser.Scene {
     }
     runState.setCheckpoint((runState.state?.level ?? 1), snapshot)
 
-    // Touch joystick UI (mobile)
-    this.createTouchJoystick()
+    // Touch joystick UI (mobile only, if enabled in options)
+    const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
+    if (isMobileDevice && getOptions().showTouchJoystick) {
+      this.createTouchJoystick()
+    }
 
     // Gamepad setup
     this.input.gamepad?.once('connected', () => {})
@@ -1443,6 +1446,7 @@ export default class GameScene extends Phaser.Scene {
     }
     ;(enemy as any).stunUntil = this.time.now + 200
     if (this.hpCur <= 0) {
+      audio.stopMusic() // Stop background music when player dies
       this.time.delayedCall(0, () => {
         this.scene.stop('HUD')
         this.scene.stop('Game')
@@ -1467,6 +1471,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
     if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
     if (this.hpCur <= 0) {
+      audio.stopMusic() // Stop background music when player dies
       this.time.delayedCall(0, () => {
         this.scene.stop('HUD')
         this.scene.stop('Game')
