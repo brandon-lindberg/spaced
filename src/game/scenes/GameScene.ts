@@ -305,9 +305,9 @@ export default class GameScene extends Phaser.Scene {
     }
     runState.setCheckpoint((runState.state?.level ?? 1), snapshot)
 
-    // Touch joystick UI (mobile only, if enabled in options)
+    // Touch joystick UI (mobile only)
     const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
-    if (isMobileDevice && getOptions().showTouchJoystick) {
+    if (isMobileDevice) {
       this.createTouchJoystick()
     }
 
@@ -371,8 +371,8 @@ export default class GameScene extends Phaser.Scene {
         vy = mapY
       }
     }
-    // Touch joystick
-    if (this.joyActive) {
+    // Touch joystick (only if created for mobile)
+    if (this.joyActive && this.joyBase && this.joyThumb) {
       vx = this.joyVecX
       vy = this.joyVecY
     }
@@ -519,7 +519,7 @@ export default class GameScene extends Phaser.Scene {
     // Apply camera zoom based on quality level (lower quality => zoom in slightly)
     const cam = this.cameras.main
     cam.setZoom(this.qualityZoom[this.qualityLevel])
-    // Reposition joystick on resize
+    // Reposition joystick on resize (only if joystick exists for mobile)
     if (this.joyBase && this.joyThumb) {
       const x = 40
       const y = this.scale.height - 40

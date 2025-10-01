@@ -5,7 +5,6 @@ export type Options = {
   showFPS: boolean
   musicVolume: number
   sfxVolume: number
-  showTouchJoystick: boolean
   gamepad?: {
     confirm: number
     cancel: number
@@ -26,7 +25,6 @@ const defaultOptions: Options = {
   showFPS: false,
   musicVolume: 0.5,
   sfxVolume: 0.7,
-  showTouchJoystick: true,
   gamepad: { confirm: 0, cancel: 1, pauseStart: 9, pauseSelect: 8, pause: 9, up: 12, down: 13, left: 14, right: 15, invertX: false, invertY: false },
 }
 
