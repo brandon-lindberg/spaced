@@ -17,7 +17,7 @@
   - Starfield layers + sun texture with radial gradient
 
 ## Player Ships
-- [ ] **Basic Player Ship** (8x8px)
+- [X] **Basic Player Ship** (8x8px)
   - White square placeholder (currently generated)
   - Should be replaced with actual ship sprite
 
