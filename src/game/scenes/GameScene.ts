@@ -1590,15 +1590,29 @@ export default class GameScene extends Phaser.Scene {
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
 
-    const enemy = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
+    // Use chaser sprite for chaser type, enemy square for others
+    const textureKey = type === 'chaser' ? 'enemy-chaser' : this.enemyTextureKey
+    
+    const enemy = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
+      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
     enemy.enableBody(true, x, y, true, true)
-    enemy.setCircle(3, 1, 1)
+    
+    // Set appropriate scale and hitbox based on enemy type
+    if (type === 'chaser') {
+      enemy.setScale(0.0234375) // Scale to 24x24px (24/1024 = 0.0234375)
+      enemy.setOrigin(0.5, 0.5) // Center the chaser sprite
+      enemy.setCircle(6, 0, 0) // 12px diameter circle for 24px chaser
+    } else {
+      enemy.setCircle(3, 1, 1) // Original hitbox for other enemies
+    }
     enemy.setCollideWorldBounds(false)
     // Reset pooled flags so non-elites don't inherit elite state
     ;(enemy as any).elite = false
     ;(enemy as any).isElite = false
-    enemy.setScale(1)
+    // Only reset scale for non-chaser enemies (chaser already has proper scale)
+    if (type !== 'chaser') {
+      enemy.setScale(1)
+    }
 
     const elapsed = (this.time.now - this.levelStartMs) / 1000
     const touch = 1 + Math.floor(elapsed / 90)
@@ -1615,7 +1629,7 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).hp = Math.round(4 * hpScale)
       ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
-      enemy.setTint(0x66ccff)
+      // No tint needed - chaser has its own sprite
     } else {
       ;(enemy as any).hp = Math.round(7 * hpScale)
       ;(enemy as any).chase = 24
@@ -1667,11 +1681,24 @@ export default class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
-    const boss = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
+    
+    // Use boss sprite for type 1, enemy square for others
+    const bossType = type ?? (runState.state?.level ?? 1)
+    const textureKey = bossType === 1 ? 'boss-1' : this.enemyTextureKey
+    
+    const boss = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
+      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
     boss.enableBody(true, x, y, true, true)
-    boss.setScale(2)
-    boss.setCircle(6, 2, 2)
+    
+    // Set appropriate scale based on boss type
+    if (bossType === 1) {
+      boss.setScale(0.046875) // Scale to 48x48px (48/1024 = 0.046875)
+      boss.setOrigin(0.5, 0.5) // Center the boss sprite
+      boss.setCircle(12, 0, 0) // 24px diameter circle for 48px boss
+    } else {
+      boss.setScale(2) // Original scale for other bosses
+      boss.setCircle(6, 2, 2) // Original hitbox
+    }
     ;(boss as any).hp = type === 5 ? 260 : 80
     ;(boss as any).hpMax = (boss as any).hp
     ;(boss as any).touchDamage = 2
@@ -1906,6 +1933,18 @@ export default class GameScene extends Phaser.Scene {
       const dy = this.player.y - enemy.y
       const len = Math.hypot(dx, dy) || 1
       enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
+      
+      // Rotate chaser enemies to face movement direction (front is top of image)
+      if (enemy.texture && enemy.texture.key === 'enemy-chaser') {
+        // Use normalized movement direction like the player
+        const moveX = dx / len
+        const moveY = dy / len
+        // Only rotate when actually moving (same threshold as player)
+        if (Math.hypot(moveX, moveY) > 0.1) {
+          const angle = Math.atan2(moveY, moveX) + Math.PI / 2
+          enemy.setRotation(angle)
+        }
+      }
 
       const dcx = enemy.x - cx
       const dcy = enemy.y - cy
