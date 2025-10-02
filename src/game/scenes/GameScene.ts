@@ -313,7 +313,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Touch joystick UI (mobile only, if enabled in options)
     const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
-    if (isMobileDevice && getOptions().showTouchJoystick) {
+    if (isMobileDevice && (getOptions().showTouchJoystick ?? true)) {
       this.createTouchJoystick()
     }
 
