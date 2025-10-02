@@ -137,6 +137,12 @@ export default class GameScene extends Phaser.Scene {
     this.wasd = this.input.keyboard?.addKeys('W,A,S,D') as Record<string, Phaser.Input.Keyboard.Key>
 
     this.scale.on('resize', this.handleResize, this)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off('resize', this.handleResize, this)
+    })
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      this.scale.off('resize', this.handleResize, this)
+    })
 
     // Make sure input is enabled every run
     this.input.enabled = true
@@ -305,9 +311,9 @@ export default class GameScene extends Phaser.Scene {
     }
     runState.setCheckpoint((runState.state?.level ?? 1), snapshot)
 
-    // Touch joystick UI (mobile only)
+    // Touch joystick UI (mobile only, if enabled in options)
     const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
-    if (isMobileDevice) {
+    if (isMobileDevice && (getOptions().showTouchJoystick ?? true)) {
       this.createTouchJoystick()
     }
 
@@ -371,8 +377,8 @@ export default class GameScene extends Phaser.Scene {
         vy = mapY
       }
     }
-    // Touch joystick (only if created for mobile)
-    if (this.joyActive && this.joyBase && this.joyThumb) {
+    // Touch joystick
+    if (this.joyActive) {
       vx = this.joyVecX
       vy = this.joyVecY
     }
@@ -511,15 +517,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private handleResize(gameSize: Phaser.Structs.Size) {
-    const width = gameSize.width
-    const height = gameSize.height
+    const width = gameSize?.width ?? this.scale.width
+    const height = gameSize?.height ?? this.scale.height
     this.bgFar?.setSize(width, height)
     this.bgMid?.setSize(width, height)
     this.bgNear?.setSize(width, height)
     // Apply camera zoom based on quality level (lower quality => zoom in slightly)
-    const cam = this.cameras.main
-    cam.setZoom(this.qualityZoom[this.qualityLevel])
-    // Reposition joystick on resize (only if joystick exists for mobile)
+    const cam = this.cameras?.main
+    if (cam) {
+      cam.setZoom(this.qualityZoom[this.qualityLevel])
+    }
+    // Reposition joystick on resize
     if (this.joyBase && this.joyThumb) {
       const x = 40
       const y = this.scale.height - 40
@@ -1559,8 +1567,6 @@ export default class GameScene extends Phaser.Scene {
     this.joyVecY = ny
     this.joyThumb?.setPosition(this.joyCenterX + nx * this.joyRadius, this.joyCenterY + ny * this.joyRadius)
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private spawnEnemyBullet(x: number, y: number, angleDeg: number) {
     const b = this.enemyBullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
     if (!b) return
@@ -1573,6 +1579,20 @@ export default class GameScene extends Phaser.Scene {
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
     ;(b as any).damage = 1
     this.time.delayedCall(3000, () => b.active && b.disableBody(true, true))
+  }
+
+  private setCircleHitbox(sprite: Phaser.Physics.Arcade.Sprite, radius: number) {
+    const body = sprite.body as Phaser.Physics.Arcade.Body | null
+    if (!body) return
+    const scaleX = Math.abs(sprite.scaleX) > 0 ? Math.abs(sprite.scaleX) : 1
+    const scaleY = Math.abs(sprite.scaleY) > 0 ? Math.abs(sprite.scaleY) : 1
+    const effectiveScale = Math.min(scaleX, scaleY)
+    const sourceRadius = radius / effectiveScale
+    const frameWidth = sprite.frame?.realWidth ?? sourceRadius * 2
+    const frameHeight = sprite.frame?.realHeight ?? sourceRadius * 2
+    const offsetX = frameWidth / 2 - sourceRadius
+    const offsetY = frameHeight / 2 - sourceRadius
+    body.setCircle(sourceRadius, offsetX, offsetY)
   }
 
   private spawnEnemyVariant(cx: number, cy: number, elapsedSec: number) {
@@ -1590,15 +1610,36 @@ export default class GameScene extends Phaser.Scene {
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
 
-    const enemy = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
+    // Use chaser sprite for chaser type, enemy square for others
+    const textureKey = type === 'chaser' ? 'enemy-chaser' : this.enemyTextureKey
+    
+    const enemy = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
+      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
+    enemy.setTexture(textureKey)
+    enemy.setActive(true).setVisible(true)
+    enemy.setAlpha(1)
+    enemy.setDepth(10)
+    enemy.setOrigin(0.5, 0.5)
+    enemy.setRotation(0)
+    enemy.clearTint()
+
+    // Set appropriate scale based on enemy type BEFORE enabling physics body
+    if (type === 'chaser') {
+      enemy.setScale(0.0234375) // Scale to 24x24px (24/1024 = 0.0234375)
+    } else {
+      enemy.setScale(1)
+    }
+    
+    // Enable physics body AFTER scaling
     enemy.enableBody(true, x, y, true, true)
-    enemy.setCircle(3, 1, 1)
+    
+    // Set physics body size AFTER enabling body
+    this.setCircleHitbox(enemy, type === 'chaser' ? 12 : 3)
     enemy.setCollideWorldBounds(false)
     // Reset pooled flags so non-elites don't inherit elite state
     ;(enemy as any).elite = false
     ;(enemy as any).isElite = false
-    enemy.setScale(1)
+    // Non-chasers reapply tint after body setup
 
     const elapsed = (this.time.now - this.levelStartMs) / 1000
     const touch = 1 + Math.floor(elapsed / 90)
@@ -1615,7 +1656,7 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).hp = Math.round(4 * hpScale)
       ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
-      enemy.setTint(0x66ccff)
+      // No tint needed - chaser has its own sprite
     } else {
       ;(enemy as any).hp = Math.round(7 * hpScale)
       ;(enemy as any).chase = 24
@@ -1646,7 +1687,7 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).chase = Math.max(16, Math.round(((enemy as any).chase || 40) * 0.85))
       ;(enemy as any).touchDamage = ((enemy as any).touchDamage || 1) + 1
       enemy.setTint(0xff00ff)
-      enemy.setScale(1.15)
+      enemy.setScale(enemy.scaleX * 1.15, enemy.scaleY * 1.15)
       ;(enemy as any).isElite = true
       // Some elites shoot projectiles periodically
       if (Math.random() < 0.5) {
@@ -1667,11 +1708,31 @@ export default class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
-    const boss = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
+    
+    // Use boss sprite for type 1, enemy square for others
+    const bossType = type ?? (runState.state?.level ?? 1)
+    const textureKey = bossType === 1 ? 'boss-1' : this.enemyTextureKey
+    
+    const boss = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
+      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
+    boss.setTexture(textureKey)
+    boss.setActive(true).setVisible(true)
+    boss.setAlpha(1)
+    boss.setOrigin(0.5, 0.5)
+    boss.setRotation(0)
+
+    // Set appropriate scale based on boss type BEFORE enabling physics body
+    if (bossType === 1) {
+      boss.setScale(0.046875) // Scale to 48x48px (48/1024 = 0.046875)
+    } else {
+      boss.setScale(2) // Original scale for other bosses
+    }
+
+    // Enable physics body AFTER scaling
     boss.enableBody(true, x, y, true, true)
-    boss.setScale(2)
-    boss.setCircle(6, 2, 2)
+    
+    // Set physics body size AFTER enabling body
+    this.setCircleHitbox(boss, bossType === 1 ? 20 : 6)
     ;(boss as any).hp = type === 5 ? 260 : 80
     ;(boss as any).hpMax = (boss as any).hp
     ;(boss as any).touchDamage = 2
@@ -1699,9 +1760,14 @@ export default class GameScene extends Phaser.Scene {
       const y = cy + Math.sin(angle) * radius
       const boss = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
         (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
+      boss.setTexture(this.enemyTextureKey)
+      boss.setActive(true).setVisible(true)
+      boss.setAlpha(1)
+      boss.setOrigin(0.5, 0.5)
+      boss.setRotation(0)
       boss.enableBody(true, x, y, true, true)
       boss.setScale(2.2)
-      boss.setCircle(7, 2, 2)
+      this.setCircleHitbox(boss, 7)
       ;(boss as any).hp = 260
       ;(boss as any).hpMax = 260
       ;(boss as any).touchDamage = 3
@@ -1906,6 +1972,18 @@ export default class GameScene extends Phaser.Scene {
       const dy = this.player.y - enemy.y
       const len = Math.hypot(dx, dy) || 1
       enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
+      
+      // Rotate chaser enemies to face movement direction (front is top of image)
+      if (enemy.texture && enemy.texture.key === 'enemy-chaser') {
+        // Use normalized movement direction like the player
+        const moveX = dx / len
+        const moveY = dy / len
+        // Only rotate when actually moving (same threshold as player)
+        if (Math.hypot(moveX, moveY) > 0.1) {
+          const angle = Math.atan2(moveY, moveX) + Math.PI / 2
+          enemy.setRotation(angle)
+        }
+      }
 
       const dcx = enemy.x - cx
       const dcy = enemy.y - cy
@@ -2238,5 +2316,3 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 }
-
-

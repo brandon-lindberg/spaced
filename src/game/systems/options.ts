@@ -3,6 +3,7 @@ const OPTIONS_KEY = 'spaced.options'
 export type Options = {
   screenShake: boolean
   showFPS: boolean
+  showTouchJoystick: boolean
   musicVolume: number
   sfxVolume: number
   gamepad?: {
@@ -23,22 +24,27 @@ export type Options = {
 const defaultOptions: Options = {
   screenShake: true,
   showFPS: false,
+  showTouchJoystick: true,
   musicVolume: 0.5,
   sfxVolume: 0.7,
   gamepad: { confirm: 0, cancel: 1, pauseStart: 9, pauseSelect: 8, pause: 9, up: 12, down: 13, left: 14, right: 15, invertX: false, invertY: false },
 }
 
-let cached: Options = { ...defaultOptions }
+let cached: Options | null = null
 
 export function getOptions(): Options {
   if (cached) return cached
   try {
     const raw = localStorage.getItem(OPTIONS_KEY)
-    if (!raw) return cached
+    if (!raw) {
+      cached = { ...defaultOptions }
+      return cached
+    }
     const parsed = JSON.parse(raw)
     cached = { ...defaultOptions, ...parsed }
     return cached
   } catch {
+    cached = { ...defaultOptions }
     return cached
   }
 }
@@ -53,5 +59,4 @@ export function setOptions(next: Partial<Options>) {
     /* ignore */
   }
 }
-
 
