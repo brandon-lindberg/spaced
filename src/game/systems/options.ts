@@ -37,15 +37,18 @@ export function getOptions(): Options {
   try {
     const raw = localStorage.getItem(OPTIONS_KEY)
     if (!raw) {
-      cached = { ...defaultOptions }
-      return cached
+      const next = { ...defaultOptions }
+      cached = next
+      return next
     }
     const parsed = JSON.parse(raw)
-    cached = { ...defaultOptions, ...parsed }
-    return cached
+    const merged: Options = { ...defaultOptions, ...parsed }
+    cached = merged
+    return merged
   } catch {
-    cached = { ...defaultOptions }
-    return cached
+    const fallback = { ...defaultOptions }
+    cached = fallback
+    return fallback
   }
 }
 
@@ -59,4 +62,3 @@ export function setOptions(next: Partial<Options>) {
     /* ignore */
   }
 }
-
