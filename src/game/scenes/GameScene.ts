@@ -1610,8 +1610,15 @@ export default class GameScene extends Phaser.Scene {
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
 
-    // Use chaser sprite for chaser type, enemy square for others
-    const textureKey = type === 'chaser' ? 'enemy-chaser' : this.enemyTextureKey
+    // Use appropriate sprite for each enemy type
+    let textureKey: string
+    if (type === 'chaser') {
+      textureKey = 'enemy-chaser'
+    } else if (type === 'fodder') {
+      textureKey = 'enemy-fodder'
+    } else {
+      textureKey = this.enemyTextureKey
+    }
     
     const enemy = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
       (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
@@ -1626,6 +1633,8 @@ export default class GameScene extends Phaser.Scene {
     // Set appropriate scale based on enemy type BEFORE enabling physics body
     if (type === 'chaser') {
       enemy.setScale(0.0234375) // Scale to 24x24px (24/1024 = 0.0234375)
+    } else if (type === 'fodder') {
+      enemy.setScale(0.017578125) // Scale to 18x18px (18/1024 = 0.017578125)
     } else {
       enemy.setScale(1)
     }
@@ -1634,7 +1643,15 @@ export default class GameScene extends Phaser.Scene {
     enemy.enableBody(true, x, y, true, true)
     
     // Set physics body size AFTER enabling body
-    this.setCircleHitbox(enemy, type === 'chaser' ? 12 : 3)
+    let hitboxRadius: number
+    if (type === 'chaser') {
+      hitboxRadius = 12 // 24px diameter for 24px chaser
+    } else if (type === 'fodder') {
+      hitboxRadius = 9 // 18px diameter for 18px fodder
+    } else {
+      hitboxRadius = 3 // Original hitbox for other enemies
+    }
+    this.setCircleHitbox(enemy, hitboxRadius)
     enemy.setCollideWorldBounds(false)
     // Reset pooled flags so non-elites don't inherit elite state
     ;(enemy as any).elite = false
@@ -1651,7 +1668,7 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).hp = Math.max(1, Math.round(2 * hpScale))
       ;(enemy as any).chase = 42
       ;(enemy as any).touchDamage = touch
-      enemy.setTint(0xff6666)
+      // No tint needed - fodder has its own sprite
     } else if (type === 'chaser') {
       ;(enemy as any).hp = Math.round(4 * hpScale)
       ;(enemy as any).chase = 64
@@ -1973,8 +1990,8 @@ export default class GameScene extends Phaser.Scene {
       const len = Math.hypot(dx, dy) || 1
       enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
       
-      // Rotate chaser enemies to face movement direction (front is top of image)
-      if (enemy.texture && enemy.texture.key === 'enemy-chaser') {
+      // Rotate chaser and fodder enemies to face movement direction (front is top of image)
+      if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder')) {
         // Use normalized movement direction like the player
         const moveX = dx / len
         const moveY = dy / len
