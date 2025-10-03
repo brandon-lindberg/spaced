@@ -31,6 +31,7 @@ export default class PreloadScene extends Phaser.Scene {
     // Load enemy sprites
     this.load.image('enemy-chaser', 'assets/level_one_enemies/enemy_one_chaser.png')
     this.load.image('enemy-fodder', 'assets/level_one_enemies/enemy_one_fodder.png')
+    this.load.image('enemy-tank', 'assets/level_one_enemies/enemy_one_tank.png')
     // Generate placeholder textures for all icons and common sprites
     const makeRect = (key: string, w: number, h: number, color: number) => {
       if (this.textures.exists(key)) return

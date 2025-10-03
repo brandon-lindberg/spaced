@@ -1616,6 +1616,8 @@ export default class GameScene extends Phaser.Scene {
       textureKey = 'enemy-chaser'
     } else if (type === 'fodder') {
       textureKey = 'enemy-fodder'
+    } else if (type === 'tank') {
+      textureKey = 'enemy-tank'
     } else {
       textureKey = this.enemyTextureKey
     }
@@ -1635,6 +1637,8 @@ export default class GameScene extends Phaser.Scene {
       enemy.setScale(0.0234375) // Scale to 24x24px (24/1024 = 0.0234375)
     } else if (type === 'fodder') {
       enemy.setScale(0.017578125) // Scale to 18x18px (18/1024 = 0.017578125)
+    } else if (type === 'tank') {
+      enemy.setScale(0.03125) // Scale to 32x32px (32/1024 = 0.03125)
     } else {
       enemy.setScale(1)
     }
@@ -1648,6 +1652,8 @@ export default class GameScene extends Phaser.Scene {
       hitboxRadius = 12 // 24px diameter for 24px chaser
     } else if (type === 'fodder') {
       hitboxRadius = 9 // 18px diameter for 18px fodder
+    } else if (type === 'tank') {
+      hitboxRadius = 16 // 32px diameter for 32px tank
     } else {
       hitboxRadius = 3 // Original hitbox for other enemies
     }
@@ -1674,6 +1680,11 @@ export default class GameScene extends Phaser.Scene {
       ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
       // No tint needed - chaser has its own sprite
+    } else if (type === 'tank') {
+      ;(enemy as any).hp = Math.round(7 * hpScale)
+      ;(enemy as any).chase = 24
+      ;(enemy as any).touchDamage = touch + 1
+      // No tint needed - tank has its own sprite
     } else {
       ;(enemy as any).hp = Math.round(7 * hpScale)
       ;(enemy as any).chase = 24
@@ -1990,8 +2001,8 @@ export default class GameScene extends Phaser.Scene {
       const len = Math.hypot(dx, dy) || 1
       enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
       
-      // Rotate chaser and fodder enemies to face movement direction (front is top of image)
-      if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder')) {
+      // Rotate chaser, fodder, and tank enemies to face movement direction (front is top of image)
+      if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder' || enemy.texture.key === 'enemy-tank')) {
         // Use normalized movement direction like the player
         const moveX = dx / len
         const moveY = dy / len
