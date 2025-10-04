@@ -1,61 +1,89 @@
 import Phaser from 'phaser'
-// options are referenced dynamically in onPlayerTouched to avoid import inlining issues
-import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons, MAX_WEAPON_LEVEL, MAX_ACCESSORY_LEVEL } from '../systems/inventory'
-import { evolveWeapon } from '../systems/inventory'
-import { defaultBaseStats, applyWeaponLevel, applyAccessoryLevel, computeEvolution } from '../systems/items'
 import { getOptions } from '../systems/options'
 import { runState } from '../systems/runState'
 import { attachGamepad, ensureGamepadProbe } from '../systems/gamepad'
 import { audio } from '../systems/audio'
-import type { InventoryState } from '../systems/inventory'
+import { createSceneContext } from '../controllers/SceneServices'
+import { BackgroundController } from '../controllers/BackgroundController'
+import { PlayerController } from '../controllers/PlayerController'
+import { PickupManager } from '../controllers/PickupManager'
+import { RunProgressManager, type LevelUpChoice, type StatsSnapshot } from '../controllers/RunProgressManager'
+import { EnemyManager, type SpawnContext } from '../controllers/EnemyManager'
+import { BossManager } from '../controllers/BossManager'
+import { ObstacleManager } from '../controllers/ObstacleManager'
 
 export default class GameScene extends Phaser.Scene {
   private player?: Phaser.Physics.Arcade.Sprite
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
-  private wasd?: Record<string, Phaser.Input.Keyboard.Key>
-  private lastAimDeg = 0
-  private lastMoveX = 0
-  private lastMoveY = 0
-
-  // Boss state
-  private bossActive = false
-  private gauntletActive = false
-  private gauntletStage = 0
-  private bossTimers: Phaser.Time.TimerEvent[] = []
-  private currentBoss?: Phaser.Physics.Arcade.Sprite
-  private currentBossType = 0
-  private currentBossPhase = -1
-
-  private bgFar?: Phaser.GameObjects.TileSprite
-  private bgMid?: Phaser.GameObjects.TileSprite
-  private bgNear?: Phaser.GameObjects.TileSprite
-  private bgSun?: Phaser.GameObjects.Image
-  // Asteroid obstacles (Level 2)
-  private asteroidStatics?: Phaser.Physics.Arcade.Group
-  private asteroidMovers?: Phaser.Physics.Arcade.Group
-  private asteroidSpawnAcc = 0
-  private asteroidMoveSpawnAcc = 0
+  private playerController?: PlayerController
+  private background?: BackgroundController
+  private progressManager?: RunProgressManager
+  private pickupManager?: PickupManager
+  private enemyManager?: EnemyManager
+  private bossManager?: BossManager
+  private obstacleManager?: ObstacleManager
 
   private enemies!: Phaser.Physics.Arcade.Group
-  private enemyTextureKey = 'enemy-square'
   private spawnAccumulator = 0
   private levelStartMs = 0
 
-  private xpGroup!: Phaser.Physics.Arcade.Group
-  private goldGroup!: Phaser.Physics.Arcade.Group
-  private healthGroup!: Phaser.Physics.Arcade.Group
-  private powerupGroup!: Phaser.Physics.Arcade.Group
-  private xpTextureKey = 'xp-gem'
-  private goldTextureKey = 'gold-coin'
-  private healthTextureKey = 'health-pack'
-  private powerupTextureKey = 'powerup-chip'
-  // removed passive pickup spawners
-
-  private level = 1
-  private xpToNext = 3
-  private magnetRadius = 16
-  private speedMultiplier = 1
   private remainingSec = 0
+  private stats: StatsSnapshot = {
+    fireRate: 0.8,
+    bulletDamage: 1,
+    multishot: 1,
+    speedMultiplier: 1,
+    magnetRadius: 16,
+    spreadDeg: 10,
+    inlineExtraProjectiles: 0,
+    bonusLevelsUsed: 0,
+    hpCur: 10,
+    hpMax: 10,
+    hurtCooldown: 0,
+  }
+
+  private initializeWeaponCooldowns() {
+    this.weaponCooldowns = {}
+    this.laserBeamAccum = 0
+    const inv = this.progressManager?.getInventory()
+    if (!inv) return
+    const initialCooldown = 1 / Math.max(0.1, this.stats.fireRate)
+    for (const weapon of inv.weapons) {
+      if (weapon.key.includes('blaster')) {
+        this.weaponCooldowns['blaster'] = initialCooldown
+      }
+      if (weapon.key.includes('missile')) {
+        this.weaponCooldowns['missiles'] = initialCooldown
+      }
+      if (weapon.key.includes('orb')) {
+        this.weaponCooldowns['orbs'] = initialCooldown
+      }
+    }
+  }
+
+  private handleLevelUpChoices(choices: LevelUpChoice[]) {
+    this.scene.pause()
+    this.time.timeScale = 0
+    audio.sfxLevelUp()
+    this.scene.launch('LevelUp', { choices })
+    const applyOnce = (key: string) => {
+      this.progressManager?.applyLevelUpChoice(key)
+      this.game.events.off('levelup-apply', applyOnce)
+      this.time.timeScale = 1
+      this.scene.resume()
+    }
+    this.game.events.on('levelup-apply', applyOnce)
+  }
+
+  private handleLevelUpApplied(choiceKey: string) {
+    if (choiceKey.startsWith('w-')) {
+      this.initializeWeaponCooldowns()
+    }
+  }
+
+  private handleStatsChanged(stats: StatsSnapshot) {
+    this.stats = { ...stats }
+    this.hurtCooldown = stats.hurtCooldown
+  }
 
   // Basic weapon: Blaster
   private bullets!: Phaser.Physics.Arcade.Group
@@ -63,19 +91,6 @@ export default class GameScene extends Phaser.Scene {
   private orbGroup!: Phaser.Physics.Arcade.Group
   private enemyBullets!: Phaser.Physics.Arcade.Group
   private bulletTextureKey = 'bullet'
-  private fireRate = 0.8 // slower base; upgrades increase this
-  private bulletDamage = 1
-  private multishot = 1
-  private inlineExtraProjectiles = 0
-  private spreadDeg = 10
-  // In-run bonus modifiers from level-up choices (applied on top of inventory stats)
-  private bonusFireRateMul = 1
-  private bonusDamage = 0
-  private bonusMultishot = 0
-  private bonusSpeedMul = 1
-  private bonusMagnet = 0
-  private bonusLevelsUsed = 0
-  private readonly maxBonusLevels = 10
   // Per-weapon cooldowns so weapons fire independently
   private weaponCooldowns: Record<string, number> = {}
   private laserAngle = 0
@@ -83,8 +98,6 @@ export default class GameScene extends Phaser.Scene {
   // private laserTickCooldown = 0
 
   // Player health
-  private hpMax = 10
-  private hpCur = 10
   private hurtCooldown = 0
 
   // Dynamic quality scaling
@@ -96,45 +109,90 @@ export default class GameScene extends Phaser.Scene {
   private readonly spawnCapScale: number[] = [1.0, 0.85, 0.7]
   private readonly spawnRateScale: number[] = [1.0, 0.9, 0.8]
 
-  // Touch joystick
-  private joyBase?: Phaser.GameObjects.Arc
-  private joyThumb?: Phaser.GameObjects.Arc
-  private joyActive = false
-  private joyPointerId: number | null = null
-  private joyCenterX = 0
-  private joyCenterY = 0
-  private joyVecX = 0
-  private joyVecY = 0
-  private readonly joyRadius = 26
-
   constructor() {
     super('Game')
   }
 
   create() {
-    // Carry over HP across levels if present
-    const hpReg = this.registry.get('hp') as { cur: number; max: number } | undefined
-    if (hpReg) { this.hpMax = hpReg.max; this.hpCur = Math.max(0, Math.min(hpReg.cur, hpReg.max)) }
-    // Build background for current level
-    this.setupBackgroundForLevel((runState.state?.level ?? 1))
+    const level = runState.state?.level ?? 1
+
+    this.background = new BackgroundController(this, { qualityZoom: this.qualityZoom })
+    this.background.init(level)
+
     audio.init(this)
     audio.startMusic(this)
 
-    const centerX = this.scale.width / 2
-    const centerY = this.scale.height / 2
-    this.player = this.physics.add.sprite(centerX, centerY, 'player-ship-1')
-    this.player.setCollideWorldBounds(false)
-    this.player.setScale(0.02734375) // Scale down to 28x28px (28/1024 = 0.02734375)
-    this.player.setOrigin(0.5, 0.5)
-    // Player hitbox tuning: use rectangle for better collision detection
-    this.player.body?.setSize(16, 16, true) // 16x16px rectangle for 28px ship
-    console.log('Player physics body created:', !!this.player.body)
-    console.log('Player body size:', this.player.body?.width, this.player.body?.height)
+    const sceneCtx = createSceneContext(this, { audio, runState, getOptions })
 
-    this.cameras.main.startFollow(this.player, true, 0.15, 0.15)
+    const progressHandlers = {
+      onLevelUpChoices: (choices: LevelUpChoice[]) => this.handleLevelUpChoices(choices),
+      onLevelUpApplied: (choiceKey: string) => this.handleLevelUpApplied(choiceKey),
+      onStatsChanged: (stats: StatsSnapshot) => this.handleStatsChanged(stats),
+      onCheckpoint: () => {},
+    }
+    this.progressManager = new RunProgressManager(this, progressHandlers)
+    this.progressManager.initializeFromRegistry()
+    this.stats = this.progressManager.getStats()
+    this.hurtCooldown = this.stats.hurtCooldown
 
-    this.cursors = this.input.keyboard?.createCursorKeys()
-    this.wasd = this.input.keyboard?.addKeys('W,A,S,D') as Record<string, Phaser.Input.Keyboard.Key>
+    this.playerController = new PlayerController(sceneCtx)
+    this.player = this.playerController.initSprite()
+
+    this.enemyBullets = this.physics.add.group({ maxSize: 300 })
+    this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => {
+      const bullet = b as Phaser.Physics.Arcade.Sprite
+      bullet.disableBody(true, true)
+      const dmg = (bullet as any).damage ?? 1
+      this.onPlayerHitProjectile(bullet.x, bullet.y, dmg)
+    })
+
+    this.pickupManager = new PickupManager(this, { progress: this.progressManager })
+    this.pickupManager.initGroups()
+    this.pickupManager.setupPlayerColliders(this.player)
+
+    this.enemyManager = new EnemyManager(this, {
+      pickupManager: this.pickupManager,
+      spawnEnemyBullet: (x, y, angle) => this.spawnEnemyBullet(x, y, angle),
+    })
+    this.enemies = this.enemyManager.initGroup()
+    this.enemyManager.setPlayer(this.player)
+    this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
+      const enemy = e as Phaser.Physics.Arcade.Sprite
+      if (!enemy.active) return
+      this.onPlayerTouched(enemy)
+    })
+
+    this.bossManager = new BossManager(this, {
+      enemyGroup: this.enemies,
+      spawnEnemyBullet: (x, y, angle) => this.spawnEnemyBullet(x, y, angle),
+      getPlayer: () => this.player,
+      onVictory: () => {
+        this.scene.stop('HUD')
+        this.scene.start('Victory')
+      },
+    })
+    this.enemyManager.setBossHandlers({
+      onBossDamaged: (enemy, hp, hpMax) => this.bossManager?.handleBossDamaged(enemy, hp, hpMax),
+      onBossKilled: (enemy) => this.bossManager?.handleBossDefeated(enemy),
+    })
+
+    this.obstacleManager = new ObstacleManager(this, {
+      enemyGroup: this.enemies,
+      onCollision: (objA, objB) => this.onAsteroidHit(objA, objB),
+    })
+    this.obstacleManager.setPlayer(this.player)
+
+    const rs = runState.startLevel(level, this.time.now)
+    this.levelStartMs = rs?.levelStartMs ?? this.time.now
+    this.remainingSec = rs?.levelDurationSec ?? 900
+    this.spawnAccumulator = 0
+    this.registry.set('boss-hp', null)
+    this.bossManager?.resetForLevel()
+    this.obstacleManager?.reset()
+
+    if (!this.weaponCooldowns || Object.keys(this.weaponCooldowns).length === 0) {
+      this.initializeWeaponCooldowns()
+    }
 
     this.scale.on('resize', this.handleResize, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -144,178 +202,14 @@ export default class GameScene extends Phaser.Scene {
       this.scale.off('resize', this.handleResize, this)
     })
 
-    // Make sure input is enabled every run
     this.input.enabled = true
     if (this.input.keyboard) this.input.keyboard.enabled = true
 
-    this.createEnemyTexture(this.enemyTextureKey)
-    this.enemies = this.physics.add.group()
-    // Prevent enemies from overlapping each other (basic separation)
-    this.physics.add.collider(this.enemies, this.enemies)
-    const rs = runState.startLevel(runState.state?.level ?? 1, this.time.now)
-    this.levelStartMs = rs?.levelStartMs ?? this.time.now
-    this.remainingSec = rs?.levelDurationSec ?? 900
-
-    // Per-level init without wiping run state
-    this.spawnAccumulator = 0
-    // Initialize progression only if not already present (preserve across levels)
-    const currentLevel = this.registry.get('level')
-    if (currentLevel === undefined || currentLevel === null) {
-      this.registry.set('level', 1)
-      this.level = 1
-    } else {
-      // Always sync internal level with registry level (important for retry)
-      this.level = currentLevel
-    }
-    if (this.registry.get('xp') === undefined || this.registry.get('xp') === null) this.registry.set('xp', 0)
-    const xp2 = this.registry.get('xpToNext') as number | undefined
-    this.xpToNext = typeof xp2 === 'number' ? xp2 : 3
-    if (this.registry.get('gold') === undefined || this.registry.get('gold') === null) this.registry.set('gold', 0)
-    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-    this.registry.set('boss-hp', null)
-    // Restore bonuses if present
-    const b = (this.registry.get('bonuses') as any) || null
-    if (b) {
-      this.bonusFireRateMul = b.fireRateMul ?? this.bonusFireRateMul
-      this.bonusDamage = b.damage ?? this.bonusDamage
-      this.bonusMultishot = b.multishot ?? this.bonusMultishot
-      this.bonusSpeedMul = b.speedMul ?? this.bonusSpeedMul
-      this.bonusMagnet = b.magnet ?? this.bonusMagnet
-      this.bonusLevelsUsed = b.levelsUsed ?? this.bonusLevelsUsed
-      this.inlineExtraProjectiles = b.inlineExtra ?? this.inlineExtraProjectiles
-    }
-    // Only initialize weapon cooldowns if they haven't been initialized yet
-    if (!this.weaponCooldowns || Object.keys(this.weaponCooldowns).length === 0) {
-      this.weaponCooldowns = {}
-      this.laserBeamAccum = 0
-      
-      // Initialize cooldowns for all weapons in inventory to prevent immediate firing
-      const currentInv = (this.registry.get('inv') as InventoryState) || createInventory()
-      console.log('[WEAPON DEBUG] Initializing weapon cooldowns for inventory:', currentInv.weapons.map(w => w.key))
-      // Initialize with proper cooldown values instead of 0
-      const initialCooldown = 1 / Math.max(0.1, this.fireRate)
-      for (const weapon of currentInv.weapons) {
-        if (weapon.key.includes('blaster')) {
-          this.weaponCooldowns['blaster'] = initialCooldown
-          console.log(`[WEAPON DEBUG] Initialized blaster cooldown to ${initialCooldown.toFixed(3)}s`)
-        }
-        if (weapon.key.includes('missile')) {
-          this.weaponCooldowns['missiles'] = initialCooldown
-          console.log(`[WEAPON DEBUG] Initialized missiles cooldown to ${initialCooldown.toFixed(3)}s`)
-        }
-        if (weapon.key.includes('orb')) {
-          this.weaponCooldowns['orbs'] = initialCooldown
-          console.log(`[WEAPON DEBUG] Initialized orbs cooldown to ${initialCooldown.toFixed(3)}s`)
-        }
-      }
-      console.log('[WEAPON DEBUG] Final weapon cooldowns:', this.weaponCooldowns)
-    } else {
-      console.log('[WEAPON DEBUG] Weapon cooldowns already initialized, skipping reinitialization')
-    }
-
-    // Pickups
-    this.createXPGemTexture(this.xpTextureKey)
-    this.createXPGemEliteTexture('xp-gem-elite')
-    this.createGoldTexture(this.goldTextureKey)
-    this.createGoldEliteTexture('gold-coin-elite')
-    this.createHealthTexture(this.healthTextureKey)
-    this.createPowerupTexture(this.powerupTextureKey)
-    this.xpGroup = this.physics.add.group()
-    this.goldGroup = this.physics.add.group()
-    this.healthGroup = this.physics.add.group()
-    this.powerupGroup = this.physics.add.group()
-    // Separate enemy bullet group
-    this.enemyBullets = this.physics.add.group({ maxSize: 300 })
-    // Collide enemy bullets with player only
-    this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => {
-      const bullet = b as Phaser.Physics.Arcade.Sprite
-      bullet.disableBody(true, true)
-      const dmg = (bullet as any).damage ?? 1
-      this.onPlayerHitProjectile(bullet.x, bullet.y, dmg)
-    })
-
-    this.physics.add.overlap(this.player, this.xpGroup, (_, pickup) => {
-      const sprite = pickup as Phaser.Physics.Arcade.Sprite
-      const isXp = (sprite.texture && sprite.texture.key === this.xpTextureKey) || (sprite.getData && sprite.getData('kind') === 'xp')
-      if (!isXp) return
-      sprite.destroy()
-      const cur = (this.registry.get('xp') as number) || 0
-      const next = cur + 1
-      this.registry.set('xp', next)
-      this.checkLevelProgress(next)
-      const elite = sprite.texture?.key === 'xp-gem-elite' || (sprite.getData && sprite.getData('kind') === 'xp-elite')
-      audio.sfxPickupXP(!!elite)
-    })
-    this.physics.add.overlap(this.player, this.goldGroup, (_, pickup) => {
-      const sprite = pickup as Phaser.Physics.Arcade.Sprite
-      const isGold = (sprite.texture && (sprite.texture.key === this.goldTextureKey || sprite.texture.key === 'gold-coin-elite')) || (sprite.getData && sprite.getData('kind') === 'gold')
-      if (!isGold) return
-      sprite.destroy()
-      const cur = (this.registry.get('gold') as number) || 0
-      const add = sprite.texture?.key === 'gold-coin-elite' ? 1 : 1
-      this.registry.set('gold', cur + add)
-      const elite = sprite.texture?.key === 'gold-coin-elite'
-      audio.sfxPickupGold(!!elite)
-    })
-    this.physics.add.overlap(this.player, this.healthGroup, (_, pickup) => {
-      const sprite = pickup as Phaser.Physics.Arcade.Sprite
-      sprite.destroy()
-      const heal = Math.max(1, Math.ceil(this.hpMax * 0.2)) // 20% heal, min 1
-      this.hpCur = Math.min(this.hpMax, this.hpCur + heal)
-      this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-      audio.sfxPickupHealth()
-    })
-    this.physics.add.overlap(this.player, this.powerupGroup, (_, pickup) => {
-      const sprite = pickup as Phaser.Physics.Arcade.Sprite
-      sprite.destroy()
-      const label = this.applyPowerupReward()
-      if (label) this.registry.set('toast', `Power-up: ${label}`)
-      audio.sfxPowerup()
-    })
-
     // Player <-> enemy collision damage
-    this.physics.add.overlap(this.player, this.enemies, (_p, e) => {
-      const enemy = e as Phaser.Physics.Arcade.Sprite
-      if (!enemy.active) return
-      this.onPlayerTouched(enemy)
-    })
+    // already wired via enemyManager overlap above
 
     // Inventory (persist across level restarts within run)
-    let inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    // Ensure a fresh run starts with only a weapon and no accessories
-    if (!inv.weapons || inv.weapons.length === 0) {
-      addWeapon(inv, 'blaster')
-      inv.accessories = []
-    }
-    this.registry.set('inv', inv as unknown as InventoryState)
-    this.registry.set('inv-weapons', describeWeapons(inv))
-    this.registry.set('inv-accessories', describeAccessories(inv))
-    this.recomputeEffectiveStats()
-
-    // Create a per-level checkpoint snapshot for Retry
-    const snapshot = {
-      playerLevel: this.registry.get('level'),
-      xp: this.registry.get('xp'),
-      xpToNext: this.xpToNext,
-      gold: this.registry.get('gold'),
-      inv: this.registry.get('inv'),
-      bonuses: {
-        fireRateMul: this.bonusFireRateMul,
-        damage: this.bonusDamage,
-        multishot: this.bonusMultishot,
-        speedMul: this.bonusSpeedMul,
-        magnet: this.bonusMagnet,
-        levelsUsed: this.bonusLevelsUsed,
-        inlineExtra: this.inlineExtraProjectiles,
-      },
-    }
-    runState.setCheckpoint((runState.state?.level ?? 1), snapshot)
-
-    // Touch joystick UI (mobile only, if enabled in options)
-    const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
-    if (isMobileDevice && (getOptions().showTouchJoystick ?? true)) {
-      this.createTouchJoystick()
-    }
+    // Touch joystick handled by PlayerController
 
     // Gamepad setup
     this.input.gamepad?.once('connected', () => {})
@@ -352,375 +246,62 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    if (!this.player) return
-    const speed = 80 * this.speedMultiplier
-
-    let vx = 0
-    let vy = 0
-    // Keyboard
-    if (this.cursors?.left?.isDown || this.wasd?.A.isDown) vx -= 1
-    if (this.cursors?.right?.isDown || this.wasd?.D.isDown) vx += 1
-    if (this.cursors?.up?.isDown || this.wasd?.W.isDown) vy -= 1
-    if (this.cursors?.down?.isDown || this.wasd?.S.isDown) vy += 1
-    // Gamepad (left stick)
-    const pad = this.input.gamepad?.getPad(0)
-    if (pad) {
-      const inv = getOptions().gamepad || { invertX: false, invertY: false }
-      const rawX = pad.axes.length > 0 ? pad.axes[0].getValue() : 0
-      const rawY = pad.axes.length > 1 ? pad.axes[1].getValue() : 0
-      const mapX = inv.invertX ? -rawX : rawX
-      // Baseline: up on most sticks is negative rawY; we flip sign so natural (invertY=false) means up -> up
-      const baselineY = -rawY
-      const mapY = inv.invertY ? baselineY : -baselineY
-      if (Math.hypot(mapX, mapY) > 0.2) {
-        vx = mapX
-        vy = mapY
-      }
-    }
-    // Touch joystick
-    if (this.joyActive) {
-      vx = this.joyVecX
-      vy = this.joyVecY
-    }
-
-    const len = Math.hypot(vx, vy) || 1
-    this.lastMoveX = vx / len
-    this.lastMoveY = vy / len
-    this.player.setVelocity(this.lastMoveX * speed, this.lastMoveY * speed)
-
-    // Rotate player based on movement direction (front of ship is top of image)
-    if (this.player && Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1) {
-      const angle = Math.atan2(this.lastMoveY, this.lastMoveX) + Math.PI / 2
-      this.player.setRotation(angle)
-    }
+    if (!this.player || !this.playerController || !this.progressManager) return
+    const dt = delta / 1000
+    const speed = 80 * this.stats.speedMultiplier
+    this.playerController.update(speed)
 
     const cam = this.cameras.main
-    if (this.bgFar) {
-      this.bgFar.tilePositionX = cam.scrollX * 0.1
-      this.bgFar.tilePositionY = cam.scrollY * 0.1
-    }
-    if (this.bgMid) {
-      this.bgMid.tilePositionX = cam.scrollX * 0.25
-      this.bgMid.tilePositionY = cam.scrollY * 0.25
-    }
-    if (this.bgNear) {
-      this.bgNear.tilePositionX = cam.scrollX * 0.5
-      this.bgNear.tilePositionY = cam.scrollY * 0.5
-    }
-    if (this.bgSun) {
-      // Keep sun anchored relative to screen; subtle drift for parallax feel
-      this.bgSun.x = this.scale.width - 80 + cam.scrollX * 0.02
-      this.bgSun.y = 80 + cam.scrollY * 0.02
-    }
+    this.background?.update(cam)
 
-    // Spawning logic: ring around camera
-    const dt = delta / 1000
     this.updateDynamicQuality(dt)
-    // Decrement gameplay timer only while scene is active
+    this.progressManager?.tickHurtCooldown(dt)
+
     this.remainingSec = Math.max(0, this.remainingSec - dt)
     const total = (runState.state?.levelDurationSec ?? 900)
     const elapsedSec = Math.max(0, total - this.remainingSec)
-    // Spawn curve with waves: slow start then ramps, slight oscillation
     const wave = 0.6 + 0.4 * Math.sin(elapsedSec * 0.25)
     const spawnPerSecBase = Math.min(5, (0.3 + elapsedSec * 0.015) * wave)
     const spawnPerSec = spawnPerSecBase * this.spawnRateScale[this.qualityLevel]
     this.spawnAccumulator += spawnPerSec * dt
-    const activeEnemies = this.enemies.countActive(true)
     const capBase = Math.min(70, 10 + Math.floor(elapsedSec * 0.5))
     const targetCap = Math.floor(capBase * this.spawnCapScale[this.qualityLevel])
     const camCenter = this.getCameraCenter()
+    const level = runState.state?.level ?? 1
 
-    while (this.remainingSec > 0 && this.spawnAccumulator >= 1 && activeEnemies + 1 <= targetCap) {
+    while (this.remainingSec > 0 && this.spawnAccumulator >= 1) {
+      if (this.enemies.countActive(true) + 1 > targetCap) break
       this.spawnAccumulator -= 1
-      this.spawnEnemyVariant(camCenter.x, camCenter.y, elapsedSec)
+      const ctx: SpawnContext = {
+        elapsedSec,
+        remainingSec: this.remainingSec,
+        levelDurationSec: total,
+        levelStartMs: this.levelStartMs,
+      }
+      this.enemyManager?.spawnEnemyVariant(camCenter.x, camCenter.y, ctx)
     }
 
-    this.updateEnemies(camCenter.x, camCenter.y)
+    this.enemyManager?.updateEnemies(camCenter.x, camCenter.y)
 
-    // Level 2 asteroid obstacles: sparse statics and movers
-    if ((runState.state?.level ?? 1) === 2) {
-      this.ensureAsteroidObstacles()
-      this.asteroidSpawnAcc += dt
-      this.asteroidMoveSpawnAcc += dt
-      // statics: ~1 every 2.5s capped by group size
-      if (this.asteroidSpawnAcc > 2.5 && (this.asteroidStatics?.countActive(true) || 0) < 32) {
-        this.asteroidSpawnAcc = 0
-        this.spawnAsteroidStatic(camCenter.x, camCenter.y)
-      }
-      // movers: ~1 every 4s capped
-      if (this.asteroidMoveSpawnAcc > 4 && (this.asteroidMovers?.countActive(true) || 0) < 16) {
-        this.asteroidMoveSpawnAcc = 0
-        this.spawnAsteroidMover(camCenter.x, camCenter.y)
-      }
-      // cull far movers/statics
-      const maxR = Math.hypot(this.scale.width, this.scale.height) * 1.8
-      const cull = (grp?: Phaser.Physics.Arcade.Group) => {
-        if (!grp) return
-        const arr = grp.getChildren() as Phaser.Physics.Arcade.Sprite[]
-        for (const a of arr) {
-          const dx = a.x - camCenter.x, dy = a.y - camCenter.y
-          if (dx * dx + dy * dy > maxR * maxR) a.disableBody(true, true)
-        }
-      }
-      cull(this.asteroidStatics)
-      cull(this.asteroidMovers)
+    if (level === 2) {
+      this.obstacleManager?.update(dt, camCenter)
     }
 
-    // Ambient health spawn (rare)
-    if (!this.bossActive) {
-      const healthPerSec = 0.02
-      if (Math.random() < healthPerSec * dt) {
-        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-        const radius = Math.hypot(this.scale.width, this.scale.height) * 0.55
-        const x = camCenter.x + Math.cos(angle) * radius
-        const y = camCenter.y + Math.sin(angle) * radius
-        const p = this.healthGroup.create(x, y, this.healthTextureKey) as Phaser.Physics.Arcade.Sprite
-        if (p) {
-          p.setActive(true); p.setVisible(true)
-          // visual distinction for health (no tint so white cross stays white)
-          this.tweens.add({ targets: p, scale: 1.15, yoyo: true, duration: 500, repeat: -1, ease: 'Sine.easeInOut' })
-        }
-      }
-    }
-    // Update magnetization/despawn for pickups
-    this.updatePickups(camCenter.x, camCenter.y)
+    this.pickupManager?.update(dt, this.stats.magnetRadius, camCenter, this.bossManager?.isBossActive() ?? false)
 
     // Level timer and victory
     this.registry.set('time-left', Math.ceil(this.remainingSec))
-    if (this.remainingSec <= 0) {
-      const level = runState.state?.level ?? 1
-      if (level < 5) {
-        if (!this.bossActive) {
-          this.spawnBoss(camCenter.x, camCenter.y)
-          this.bossActive = true
-          audio.sfxBossSpawn()
-        }
-      } else {
-        // Level 5: gauntlet
-        if (!this.gauntletActive) {
-          this.gauntletActive = true
-          this.gauntletStage = 0
-          this.spawnNextGauntletBoss(camCenter.x, camCenter.y)
-        }
-      }
-    }
-    // Slight boss balance tuning based on elapsed
-    if (this.bossActive) {
-      // reserved for future boss dynamic tuning
-    }
+    this.bossManager?.update(level, this.remainingSec, camCenter)
 
     // Autofire weapon
     this.updateWeapon(dt)
-
-    // hurt cooldown tick
-    this.hurtCooldown = Math.max(0, this.hurtCooldown - dt)
   }
 
   private handleResize(gameSize: Phaser.Structs.Size) {
     const width = gameSize?.width ?? this.scale.width
     const height = gameSize?.height ?? this.scale.height
-    this.bgFar?.setSize(width, height)
-    this.bgMid?.setSize(width, height)
-    this.bgNear?.setSize(width, height)
-    // Apply camera zoom based on quality level (lower quality => zoom in slightly)
-    const cam = this.cameras?.main
-    if (cam) {
-      cam.setZoom(this.qualityZoom[this.qualityLevel])
-    }
-    // Reposition joystick on resize
-    if (this.joyBase && this.joyThumb) {
-      const x = 40
-      const y = this.scale.height - 40
-      this.joyBase.setPosition(x, y)
-      this.joyThumb.setPosition(x, y)
-      this.joyCenterX = x
-      this.joyCenterY = y
-    }
-  }
-
-  private createStarTexture(key: string, size: number, count: number) {
-    if (this.textures.exists(key)) return
-    const tex = this.textures.createCanvas(key, size, size)
-    const ctx = tex?.getContext()
-    if (!ctx) return
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, size, size)
-    for (let i = 0; i < count; i++) {
-      const x = Math.random() * size
-      const y = Math.random() * size
-      const r = Math.random() < 0.85 ? 0.5 + Math.random() * 0.8 : 1 + Math.random() * 1.2
-      const a = 0.3 + Math.random() * 0.7
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`
-      ctx.fill()
-    }
-    tex?.refresh()
-  }
-
-  private createAsteroidFieldTexture(key: string, size: number, count: number) {
-    if (this.textures.exists(key)) return
-    const tex = this.textures.createCanvas(key, size, size)
-    const c = tex?.getContext()
-    if (!c) return
-    c.fillStyle = '#000'
-    c.fillRect(0, 0, size, size)
-    for (let i = 0; i < count; i++) {
-      const x = Math.random() * size
-      const y = Math.random() * size
-      const r = 3 + Math.random() * 10
-      const tilt = Math.random() * Math.PI
-      const rx = r * (0.6 + Math.random() * 0.8)
-      const ry = r
-      c.save()
-      c.translate(x, y)
-      c.rotate(tilt)
-      c.fillStyle = '#666a72'
-      c.beginPath()
-      c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2)
-      c.fill()
-      c.fillStyle = '#8a9099'
-      c.beginPath()
-      c.arc(-rx * 0.3, -ry * 0.2, Math.max(1, rx * 0.3), 0, Math.PI * 2)
-      c.fill()
-      c.restore()
-    }
-    tex?.refresh()
-  }
-
-  private createPlanetTile(key: string) {
-    if (this.textures.exists(key)) return
-    const s = 256
-    const tex = this.textures.createCanvas(key, s, s)
-    const c = tex?.getContext()
-    if (!c) return
-    c.fillStyle = '#3b2f22'
-    c.fillRect(0, 0, s, s)
-    // soil noise dots
-    for (let i = 0; i < 1200; i++) {
-      c.fillStyle = Math.random() < 0.5 ? '#46382a' : '#2e241a'
-      c.fillRect(Math.random() * s, Math.random() * s, 1, 1)
-    }
-    // green river (sinusoidal band across tile)
-    c.strokeStyle = '#1fa84a'
-    c.lineWidth = 12
-    c.beginPath()
-    for (let x = -16; x <= s + 16; x += 8) {
-      const y = s * 0.5 + Math.sin((x / s) * Math.PI * 2) * 24
-      if (x === -16) c.moveTo(x, y)
-      else c.lineTo(x, y)
-    }
-    c.stroke()
-    tex?.refresh()
-  }
-
-  private createCityTile(key: string) {
-    if (this.textures.exists(key)) return
-    const s = 256
-    const tex = this.textures.createCanvas(key, s, s)
-    const c = tex?.getContext()
-    if (!c) return
-    c.fillStyle = '#0b0e12'
-    c.fillRect(0, 0, s, s)
-    // grid roads
-    c.strokeStyle = '#1a2030'
-    c.lineWidth = 3
-    for (let i = 0; i <= s; i += 32) {
-      c.beginPath(); c.moveTo(i, 0); c.lineTo(i, s); c.stroke()
-      c.beginPath(); c.moveTo(0, i); c.lineTo(s, i); c.stroke()
-    }
-    // buildings
-    for (let i = 0; i < 70; i++) {
-      const x = Math.floor(Math.random() * s)
-      const y = Math.floor(Math.random() * s)
-      const w = 6 + Math.random() * 18
-      const h = 6 + Math.random() * 18
-      c.fillStyle = '#2a3a55'
-      c.fillRect(x, y, w, h)
-      // windows
-      c.fillStyle = Math.random() < 0.3 ? '#ffd966' : '#334a6b'
-      for (let wx = x + 2; wx < x + w - 2; wx += 4) {
-        for (let wy = y + 2; wy < y + h - 2; wy += 4) {
-          if (Math.random() < 0.4) c.fillRect(wx, wy, 2, 2)
-        }
-      }
-    }
-    tex?.refresh()
-  }
-
-  private createSunTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const s = 256
-    const tex = this.textures.createCanvas(key, s, s)
-    const c = tex?.getContext()
-    if (!c) return
-    const cx = s / 2, cy = s / 2, r = s / 2
-    const grad = c.createRadialGradient(cx, cy, 0, cx, cy, r)
-    grad.addColorStop(0, '#fff4a3')
-    grad.addColorStop(0.5, '#ffcc44')
-    grad.addColorStop(1, 'rgba(255,180,0,0)')
-    c.fillStyle = grad
-    c.fillRect(0, 0, s, s)
-    tex?.refresh()
-  }
-
-  private setupBackgroundForLevel(level: number) {
-    // Destroy previous layers if any
-    this.bgFar?.destroy(); this.bgMid?.destroy(); this.bgNear?.destroy(); this.bgSun?.destroy(); this.bgSun = undefined
-
-    if (level === 1) {
-      this.createStarTexture('stars-far', 512, 60)
-      this.createStarTexture('stars-mid', 512, 100)
-      this.createStarTexture('stars-near', 512, 160)
-      this.bgFar = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-far').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-      this.bgMid = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-mid').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-      this.bgNear = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-near').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
-      return
-    }
-    if (level === 2) {
-      // Parallax asteroid field akin to level 1 starfield
-      this.createAsteroidFieldTexture('asteroids-far', 512, 60)
-      this.createAsteroidFieldTexture('asteroids-mid', 512, 100)
-      this.createAsteroidFieldTexture('asteroids-near', 512, 160)
-      this.bgFar = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-far').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-      this.bgMid = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-mid').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-      this.bgNear = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'asteroids-near').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
-      return
-    }
-    if (level === 3) {
-      this.createPlanetTile('planet-tile')
-      this.bgFar = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'planet-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-      this.bgMid = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'planet-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-      this.bgNear = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'planet-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
-      return
-    }
-    if (level === 4) {
-      this.createCityTile('city-tile')
-      this.bgFar = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'city-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-      this.bgMid = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'city-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-      this.bgNear = this.add.tileSprite(0,0,this.scale.width,this.scale.height,'city-tile').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
-      return
-    }
-    // level 5: space with sun
-    this.createStarTexture('stars-far', 512, 60)
-    this.createStarTexture('stars-mid', 512, 100)
-    this.createStarTexture('stars-near', 512, 160)
-    this.createSunTexture('sun-tex')
-    this.bgFar = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-far').setOrigin(0,0).setScrollFactor(0).setDepth(-1000)
-    this.bgMid = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-mid').setOrigin(0,0).setScrollFactor(0).setDepth(-999)
-    this.bgNear = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'stars-near').setOrigin(0,0).setScrollFactor(0).setDepth(-998)
-    this.bgSun = this.add.image(this.scale.width - 80, 80, 'sun-tex').setScrollFactor(0).setDepth(-997)
-    this.bgSun.setScale(1.2)
-  }
-
-  private createEnemyTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 8
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0xff4444, 1)
-    gfx.fillRect(0, 0, size, size)
-    gfx.generateTexture(key, size, size)
-    gfx.destroy()
+    this.background?.handleResize(width, height, this.qualityLevel)
+    this.playerController?.handleResize(width, height)
   }
 
   private ensureBulletAssets() {
@@ -804,17 +385,19 @@ export default class GameScene extends Phaser.Scene {
 
   private updateWeapon(dt: number) {
     this.ensureBulletAssets()
-    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
+    const inv = this.progressManager?.getInventory()
+    if (!inv) return
     const has = (k: string) => inv.weapons.some((w) => w.key === k)
     const hasBlaster = has('blaster') || has('scatter-blaster') || has('pulse-blaster')
     const hasMissiles = has('missiles') || has('cluster-missiles')
     const hasOrbs = has('orb') || has('nova-orb')
-    
+    const fireRate = this.stats.fireRate
+
     // Debug logging for weapon detection
     if (inv.weapons.length > 1) {
       console.log(`[WEAPON DEBUG] Current weapons: ${inv.weapons.map(w => w.key).join(', ')}`)
       console.log(`[WEAPON DEBUG] Has blaster: ${hasBlaster}, missiles: ${hasMissiles}, orbs: ${hasOrbs}`)
-      console.log(`[WEAPON DEBUG] Fire rate: ${this.fireRate}`)
+      console.log(`[WEAPON DEBUG] Fire rate: ${fireRate}`)
     }
 
     // Per-weapon cooldowns so weapons don't rely on each other
@@ -840,7 +423,7 @@ export default class GameScene extends Phaser.Scene {
       if (cur <= 0 && this.player) {
         const newCooldown = 1 / Math.max(0.1, rate)
         this.weaponCooldowns[key] = newCooldown
-        console.log(`[WEAPON DEBUG] ${key} firing - rate: ${rate}, new cooldown: ${newCooldown.toFixed(3)}s, current fireRate: ${this.fireRate}`)
+        console.log(`[WEAPON DEBUG] ${key} firing - rate: ${rate}, new cooldown: ${newCooldown.toFixed(3)}s, current fireRate: ${fireRate}`)
         fire()
       } else if (cur <= 0 && !this.player) {
         console.log(`[WEAPON DEBUG] ${key} ready to fire but player is null! cur: ${cur.toFixed(3)}s`)
@@ -867,11 +450,11 @@ export default class GameScene extends Phaser.Scene {
     const muzzle = 6
     // Blaster family
     if (hasBlaster) {
-      step('blaster', this.fireRate, () => {
-        const baseAngle = this.getAimAngle()
+      step('blaster', fireRate, () => {
+        const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
         const baseRad = Phaser.Math.DegToRad(baseAngle)
-        const inlineCount = Math.max(0, Math.floor(this.inlineExtraProjectiles))
-        console.log(`[BLASTER DEBUG] About to fire blaster - inlineCount: ${inlineCount}, multishot: ${this.multishot}`)
+        const inlineCount = Math.max(0, Math.floor(this.stats.inlineExtraProjectiles))
+        console.log(`[BLASTER DEBUG] About to fire blaster - inlineCount: ${inlineCount}, multishot: ${this.stats.multishot}`)
         for (let i = 0; i <= inlineCount; i++) {
           const back = i * 8
           const speedScale = 1 - Math.min(0.6, i * 0.12)
@@ -881,8 +464,8 @@ export default class GameScene extends Phaser.Scene {
         }
         const blasterLevel = (inv.weapons.find(w => w.key.includes('blaster'))?.level) || 1
         audio.sfxShotBlaster(blasterLevel)
-        const spread = this.spreadDeg || 10
-        const fanShots = Math.max(1, Math.floor(this.multishot))
+        const spread = this.stats.spreadDeg || 10
+        const fanShots = Math.max(1, Math.floor(this.stats.multishot))
         if (fanShots > 1) {
           const half = (fanShots - 1) / 2
           for (let i = -half; i <= half; i++) {
@@ -898,8 +481,8 @@ export default class GameScene extends Phaser.Scene {
     }
     // Missiles
     if (hasMissiles) {
-      step('missiles', this.fireRate, () => {
-        const a = this.getAimAngle()
+      step('missiles', fireRate, () => {
+        const a = this.playerController?.getAimAngle(this.enemies) ?? 0
         const rad = Phaser.Math.DegToRad(a)
         const ox = this.player!.x + Math.cos(rad) * muzzle
         const oy = this.player!.y + Math.sin(rad) * muzzle
@@ -911,8 +494,8 @@ export default class GameScene extends Phaser.Scene {
     }
     // Orbs (staggered fire)
     if (hasOrbs) {
-      step('orbs', this.fireRate, () => {
-        const a = this.getAimAngle()
+      step('orbs', fireRate, () => {
+        const a = this.playerController?.getAimAngle(this.enemies) ?? 0
         const rad = Phaser.Math.DegToRad(a)
         const muzzleOrb = 12
         const ox = this.player!.x + Math.cos(rad) * muzzleOrb
@@ -967,9 +550,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Handle laser spiral independently so it fires even when blaster cooldown is active
-    const inv2 = (this.registry.get('inv') as InventoryState) || createInventory()
-    const wLaser = inv2.weapons.find((w) => w.key === 'laser')
-    const wBeam = inv2.weapons.find((w) => w.key === 'beam-laser')
+    const wLaser = inv.weapons.find((w) => w.key === 'laser')
+    const wBeam = inv.weapons.find((w) => w.key === 'beam-laser')
     const hasLaser = !!wLaser
     const hasBeamLaser = !!wBeam
     if (this.player && (hasLaser || hasBeamLaser)) {
@@ -978,7 +560,7 @@ export default class GameScene extends Phaser.Scene {
       const spinBase = 140 + 25 * (lvl - 1)
       const spinSpeed = spinBase * (hasBeamLaser ? 1.15 : 1)
       const baseRate = 0.5 + 0.35 * (lvl - 1) // beams per second before global modifiers
-      const rate = baseRate * (this.fireRate / 1.2) * (hasBeamLaser ? 1.2 : 1)
+      const rate = baseRate * (fireRate / 1.2) * (hasBeamLaser ? 1.2 : 1)
       this.laserAngle = (this.laserAngle + spinSpeed * dt) % 360
       this.laserBeamAccum += dt
       if (this.laserBeamAccum >= 1 / Math.max(0.1, rate)) {
@@ -990,7 +572,7 @@ export default class GameScene extends Phaser.Scene {
         const len = hasBeamLaser ? 140 : 105
         const thickness = (hasBeamLaser ? 6 : 4) + (lvl - 1) * (hasBeamLaser ? 2 : 1.5)
         this.spawnBeam(ox, oy, a, len, thickness)
-        this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.bulletDamage * (hasBeamLaser ? 0.9 : 0.6)), thickness)
+        this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 0.9 : 0.6)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
         if (shot) {
           shot.enableBody(true, ox, oy, true, true)
@@ -1000,7 +582,7 @@ export default class GameScene extends Phaser.Scene {
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
           shot.setVelocity(Math.cos(vrad) * vs, Math.sin(vrad) * vs)
-          ;(shot as any).damage = Math.max(1, Math.floor(this.bulletDamage * 0.6))
+          ;(shot as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 0.6))
           this.time.delayedCall(300, () => shot.active && shot.disableBody(true, true))
         }
       }
@@ -1028,7 +610,7 @@ export default class GameScene extends Phaser.Scene {
     const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
-    ;(b as any).damage = this.bulletDamage
+    ;(b as any).damage = this.stats.bulletDamage
     ;(b as any).weaponType = weaponType || 'unknown'
     
     console.log(`[BULLET DEBUG] Spawned ${weaponType || 'unknown'} bullet at (${x.toFixed(1)}, ${y.toFixed(1)}) with speed ${speed}, angle ${angleDeg.toFixed(1)}°`)
@@ -1066,7 +648,7 @@ export default class GameScene extends Phaser.Scene {
     const speed = 160
     const rad = Phaser.Math.DegToRad(angleDeg)
     m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
-    ;(m as any).damage = Math.max(1, Math.floor(this.bulletDamage * 1.5))
+    ;(m as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.5))
     ;(m as any).missile = true
     ;(m as any).weaponType = 'missile'
     
@@ -1102,7 +684,7 @@ export default class GameScene extends Phaser.Scene {
     const speed = 110
     const rad = Phaser.Math.DegToRad(angleDeg)
     o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
-    ;(o as any).damage = this.bulletDamage
+    ;(o as any).damage = this.stats.bulletDamage
     ;(o as any).orb = true
     ;(o as any).exploded = false
     ;(o as any).bornUntil = this.time.now + 120
@@ -1123,17 +705,8 @@ export default class GameScene extends Phaser.Scene {
       if (!e || !e.active) continue
       const dx = e.x - cx, dy = e.y - cy
       if (dx * dx + dy * dy <= radius * radius) {
-        const hp = ((e as any).hp ?? 2) - Math.max(1, Math.floor(this.bulletDamage * 1.2))
-        ;(e as any).hp = hp
         this.showHitSpark(e.x, e.y)
-        if (hp <= 0) {
-          const isBoss = !!(e as any).isBoss
-          e.disableBody(true, true)
-          if (!isBoss) {
-            if (Math.random() < 0.65) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
-            if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
-          }
-        }
+        this.enemyManager?.applyDamage(e, Math.max(1, Math.floor(this.stats.bulletDamage * 1.2)))
       }
     }
     o.disableBody(true, true)
@@ -1178,43 +751,10 @@ export default class GameScene extends Phaser.Scene {
       const dx = e.x - px
       const dy = e.y - py
       if (dx * dx + dy * dy <= thickness * thickness) {
-        const hp = ((e as any).hp ?? 2) - Math.max(1, Math.floor(dmg))
-        ;(e as any).hp = hp
         this.showHitSpark(e.x, e.y)
-        console.log('[LaserHit]', { x: e.x, y: e.y, hp })
-        const m = this.add.rectangle(e.x, e.y, 3, 3, 0x00ffff, 0.9).setDepth(1000)
-        this.tweens.add({ targets: m, alpha: 0, duration: 250, onComplete: () => m.destroy() })
-        if (hp <= 0) {
-          const isBoss = !!(e as any).isBoss
-          e.disableBody(true, true)
-          if (!isBoss) {
-            if (Math.random() < 0.8) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
-            if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
-          } else {
-            // Boss died by beam
-            this.clearBossTimers()
-            this.bossActive = false
-            this.registry.set('boss-hp', null)
-            if (getOptions().screenShake) this.cameras.main.shake(200, 0.01)
-            const level = runState.state?.level ?? 1
-            if (level < 5) {
-              this.scene.stop('HUD')
-              this.scene.start('Victory')
-            } else if (this.gauntletActive) {
-              this.gauntletStage += 1
-              if (this.gauntletStage < 5) {
-                const camCenter = this.getCameraCenter()
-                this.spawnNextGauntletBoss(camCenter.x, camCenter.y)
-              } else {
-                this.gauntletActive = false
-                this.scene.stop('HUD')
-                this.scene.start('Victory')
-              }
-            }
-          }
-        } else if ((e as any).isBoss) {
-          this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
-        }
+        const marker = this.add.rectangle(e.x, e.y, 3, 3, 0x00ffff, 0.9).setDepth(1000)
+        this.tweens.add({ targets: marker, alpha: 0, duration: 250, onComplete: () => marker.destroy() })
+        this.enemyManager?.applyDamage(e, Math.max(1, Math.floor(dmg)))
       }
     }
   }
@@ -1231,23 +771,6 @@ export default class GameScene extends Phaser.Scene {
   private showHitSpark(x: number, y: number) {
     const s = this.add.rectangle(x, y, 3, 3, 0xffffff, 1).setDepth(900)
     this.tweens.add({ targets: s, alpha: 0, duration: 120, onComplete: () => s.destroy() })
-  }
-
-  private showTelegraphLine(x1: number, y1: number, x2: number, y2: number, durationMs: number) {
-    const g = this.add.graphics().setDepth(980)
-    g.lineStyle(2, 0xff4444, 0.8)
-    g.beginPath()
-    g.moveTo(x1, y1)
-    g.lineTo(x2, y2)
-    g.strokePath()
-    this.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
-  }
-
-  private showTelegraphCircle(x: number, y: number, radius: number, durationMs: number) {
-    const g = this.add.graphics().setDepth(980)
-    g.lineStyle(2, 0xffaa00, 0.85)
-    g.strokeCircle(x, y, radius)
-    this.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
   }
 
   // Defensive helper for groups that may be undefined early in scene lifecycle
@@ -1273,170 +796,22 @@ export default class GameScene extends Phaser.Scene {
     const damage = (b as any).damage ?? 1
     const weaponType = (b as any).weaponType || 'unknown'
     console.log(`[BULLET DEBUG] ${weaponType} bullet hit enemy at (${b.x.toFixed(1)}, ${b.y.toFixed(1)}) for ${damage} damage`)
-    const hp = ((e as any).hp ?? 2) - damage
-    ;(e as any).hp = hp
-    // Hit feedback (applies to blaster, laser shot, missiles, etc.)
     this.showHitSpark(e.x, e.y)
     b.disableBody(true, true)
-    // Missile impact explosion always on contact
     if ((b as any).missile) {
       this.showExplosion(e.x, e.y, 20)
     }
-    if (hp <= 0) {
-      // Drops on enemy death (from kills only)
-      const isElite = !!((e as any).elite || (e as any).isElite)
-      if (isElite) {
-        // Elite weighted drop: 3% power-up, 50% XP (with 10–40% bonus), else gold 47%
-        const r = Math.random()
-        if (r < 0.03) {
-          const p = this.powerupGroup.create(e.x, e.y, this.powerupTextureKey) as Phaser.Physics.Arcade.Sprite
-          if (p) {
-            p.setActive(true); p.setVisible(true)
-            // visual distinction for power-ups
-            p.setTint(0x22ddaa)
-            p.setScale(1)
-            this.tweens.add({ targets: p, y: p.y - 2, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
-            this.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })
-          }
-        } else if (r < 0.53) {
-          const bonus = Phaser.Math.FloatBetween(0.1, 0.4)
-          const count = 1 + (Math.random() < Math.min(0.9, 0.4 + bonus) ? 1 : 0)
-          for (let i = 0; i < count; i++) {
-            const xp = this.xpGroup.create(e.x, e.y, 'xp-gem-elite') as Phaser.Physics.Arcade.Sprite
-            xp.setActive(true).setVisible(true)
-            xp.setData('kind', 'xp')
-            this.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
-          }
-          // Elite XP pickup tone has two-step chime on collect in handler
-        } else {
-          // Drop 5 gold coins for elite kill
-          for (let i = 0; i < 5; i++) {
-            const angle = Math.random() * Math.PI * 2
-            const dist = Math.random() * 6
-            const gx = e.x + Math.cos(angle) * dist
-            const gy = e.y + Math.sin(angle) * dist
-            const g = this.goldGroup.create(gx, gy, 'gold-coin-elite') as Phaser.Physics.Arcade.Sprite
-            g.setActive(true).setVisible(true)
-            g.setData('kind', 'gold')
-            this.tweens.add({ targets: g, scale: { from: 1, to: 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
-          }
-        }
-      } else {
-        // Non-elite: standard XP/gold small chances
-        if (Math.random() < 0.8) this.xpGroup.create(e.x, e.y, this.xpTextureKey).setActive(true).setVisible(true)
-        if (Math.random() < 0.3) this.goldGroup.create(e.x, e.y, this.goldTextureKey).setActive(true).setVisible(true)
-      }
-      const isBoss = !!(e as any).isBoss
-      e.disableBody(true, true)
-    if (isBoss) {
-      this.clearBossTimers()
-      this.bossActive = false
-      if (getOptions().screenShake) this.cameras.main.shake(200, 0.01)
-        const level = runState.state?.level ?? 1
-        if (level < 5) {
-          this.scene.stop('HUD')
-          this.scene.start('Victory')
-        } else if (this.gauntletActive) {
-          this.gauntletStage += 1
-          if (this.gauntletStage < 5) {
-            const camCenter = this.getCameraCenter()
-            this.spawnNextGauntletBoss(camCenter.x, camCenter.y)
-          } else {
-            // Gauntlet complete
-            this.gauntletActive = false
-            this.scene.stop('HUD')
-            this.scene.start('Victory')
-          }
-        }
-      }
-    } else {
-      if ((e as any).isBoss) {
-        this.registry.set('boss-hp', { cur: hp, max: (e as any).hpMax || 80 })
-        if (getOptions().screenShake) this.cameras.main.shake(100, 0.005)
-        this.configureBossPhase()
-      }
-    }
-  }
-
-  private recomputeEffectiveStats() {
-    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    const s = { ...defaultBaseStats }
-    for (const w of inv.weapons) applyWeaponLevel(s as any, w.key as any, w.level)
-    for (const a of inv.accessories) applyAccessoryLevel(s as any, a.key as any, a.level)
-    // apply in-run bonus modifiers
-    this.fireRate = Math.min(8, s.fireRate * this.bonusFireRateMul)
-    this.bulletDamage = Math.max(1, s.bulletDamage + this.bonusDamage)
-    this.multishot = Math.min(7, Math.max(1, Math.floor(s.multishot + this.bonusMultishot)))
-    this.speedMultiplier = Math.max(0.5, Math.min(2.5, s.speedMultiplier * this.bonusSpeedMul))
-    this.magnetRadius = Math.max(16, Math.min(280, s.magnetRadius + this.bonusMagnet))
-    this.spreadDeg = Math.max(4, Math.min(30, s.spreadDeg ?? 10))
-
-    // Accessory set bonuses
-    const has = (k: string, lvl = 1) => inv.accessories.some((a) => a.key === k && a.level >= lvl)
-    const sets: string[] = []
-    if (has('power-cell') && has('magnet-core')) {
-      this.bulletDamage += 1
-      sets.push('Core')
-    }
-    if (has('ammo-loader') && has('thrusters') && has('splitter')) {
-      this.fireRate = Math.min(8, this.fireRate * 1.1)
-      this.spreadDeg = Math.max(this.spreadDeg, 12)
-      sets.push('Rapid')
-    }
-    this.registry.set('sets-summary', sets.join(', '))
-  }
-  private tryEvolveWeapons() {
-    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    const evolved = computeEvolution(inv.weapons, inv.accessories)
-    if (evolved) {
-      // Find the base from the rule again to replace
-      // Simple approach: evolve first weapon that has a rule producing this evolved key
-      const base = inv.weapons.find((w) => computeEvolution([w], inv.accessories) === evolved)
-      if (base && evolveWeapon(inv, base.key as any, evolved as any)) {
-        this.registry.set('inv', inv)
-        this.registry.set('inv-weapons', describeWeapons(inv))
-        this.recomputeEffectiveStats()
-        this.registry.set('toast', `Evolved: ${evolved}!`)
-      }
-    }
-  }
-
-  private getAimAngle(): number {
-    if (!this.player) return 0
-    let nearest: Phaser.Physics.Arcade.Sprite | null = null
-    let bestDist = Number.POSITIVE_INFINITY
-    const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
-    for (const e of children) {
-      if (!e || !e.active) continue
-      const dx = e.x - this.player.x
-      const dy = e.y - this.player.y
-      const d2 = dx * dx + dy * dy
-      if (d2 < bestDist) {
-        bestDist = d2
-        nearest = e
-      }
-    }
-    // If no enemies, aim in movement direction; if stationary, keep last aim
-    if (!nearest) {
-      if (Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1) {
-        this.lastAimDeg = Phaser.Math.RadToDeg(Math.atan2(this.lastMoveY, this.lastMoveX))
-      }
-      return this.lastAimDeg
-    }
-    const dx = nearest.x - this.player.x
-    const dy = nearest.y - this.player.y
-    this.lastAimDeg = Phaser.Math.RadToDeg(Math.atan2(dy, dx))
-    return this.lastAimDeg
+    this.enemyManager?.applyDamage(e, damage)
   }
 
   private onPlayerTouched(enemy: Phaser.Physics.Arcade.Sprite) {
-    if (!this.player) return
-    if (this.hurtCooldown > 0) return
+    if (!this.player || this.hurtCooldown > 0 || !this.progressManager) return
     const dmg = ((enemy as any).touchDamage as number) || 1
+    const result = this.progressManager.takeDamage(dmg)
+    this.stats.hpCur = result.hpCur
+    this.stats.hpMax = result.hpMax
     this.hurtCooldown = 0.8
-    this.hpCur = Math.max(0, this.hpCur - dmg)
-    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-      audio.sfxHurt()
+    audio.sfxHurt()
     // Knockback player away from enemy
     const dxp = this.player.x - enemy.x
     const dyp = this.player.y - enemy.y
@@ -1453,7 +828,7 @@ export default class GameScene extends Phaser.Scene {
       enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
     }
     ;(enemy as any).stunUntil = this.time.now + 200
-    if (this.hpCur <= 0) {
+    if (result.died) {
       audio.stopMusic() // Stop background music when player dies
       this.time.delayedCall(0, () => {
         this.scene.stop('HUD')
@@ -1464,12 +839,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private onPlayerHitProjectile(px: number, py: number, dmg: number) {
-    if (!this.player) return
-    if (this.hurtCooldown > 0) return
+    if (!this.player || this.hurtCooldown > 0 || !this.progressManager) return
+    const result = this.progressManager.takeDamage(dmg)
+    this.stats.hpCur = result.hpCur
+    this.stats.hpMax = result.hpMax
     this.hurtCooldown = 0.8
-    this.hpCur = Math.max(0, this.hpCur - dmg)
-    this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-      audio.sfxHurt()
+    audio.sfxHurt()
     // Knockback away from projectile position
     const dxp = this.player.x - px
     const dyp = this.player.y - py
@@ -1478,7 +853,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
     if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
-    if (this.hpCur <= 0) {
+    if (result.died) {
       audio.stopMusic() // Stop background music when player dies
       this.time.delayedCall(0, () => {
         this.scene.stop('HUD')
@@ -1521,52 +896,6 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private createTouchJoystick() {
-    const x = 40
-    const y = this.scale.height - 40
-    this.joyCenterX = x
-    this.joyCenterY = y
-    this.joyBase = this.add.circle(x, y, this.joyRadius, 0xffffff, 0.08).setScrollFactor(0).setDepth(999)
-    this.joyThumb = this.add.circle(x, y, 12, 0xffffff, 0.15).setScrollFactor(0).setDepth(1000)
-    this.joyBase.setVisible(true)
-    this.joyThumb.setVisible(true)
-
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.joyActive) return
-      // Only left third of screen activates joystick
-      if (p.x <= this.scale.width * 0.5) {
-        this.joyActive = true
-        this.joyPointerId = p.id
-        this.updateJoystick(p.x, p.y)
-      }
-    })
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!this.joyActive || this.joyPointerId !== p.id) return
-      this.updateJoystick(p.x, p.y)
-    })
-    const end = (p: Phaser.Input.Pointer) => {
-      if (!this.joyActive || this.joyPointerId !== p.id) return
-      this.joyActive = false
-      this.joyPointerId = null
-      this.joyVecX = 0
-      this.joyVecY = 0
-      this.joyThumb?.setPosition(this.joyCenterX, this.joyCenterY)
-    }
-    this.input.on('pointerup', end)
-    this.input.on('pointerupoutside', end)
-  }
-
-  private updateJoystick(px: number, py: number) {
-    const dx = px - this.joyCenterX
-    const dy = py - this.joyCenterY
-    const d = Math.hypot(dx, dy)
-    const clamped = Math.min(1, d / this.joyRadius)
-    const nx = (dx / (d || 1)) * clamped
-    const ny = (dy / (d || 1)) * clamped
-    this.joyVecX = nx
-    this.joyVecY = ny
-    this.joyThumb?.setPosition(this.joyCenterX + nx * this.joyRadius, this.joyCenterY + ny * this.joyRadius)
-  }
   private spawnEnemyBullet(x: number, y: number, angleDeg: number) {
     const b = this.enemyBullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
     if (!b) return
@@ -1581,511 +910,23 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(3000, () => b.active && b.disableBody(true, true))
   }
 
-  private setCircleHitbox(sprite: Phaser.Physics.Arcade.Sprite, radius: number) {
-    const body = sprite.body as Phaser.Physics.Arcade.Body | null
-    if (!body) return
-    const scaleX = Math.abs(sprite.scaleX) > 0 ? Math.abs(sprite.scaleX) : 1
-    const scaleY = Math.abs(sprite.scaleY) > 0 ? Math.abs(sprite.scaleY) : 1
-    const effectiveScale = Math.min(scaleX, scaleY)
-    const sourceRadius = radius / effectiveScale
-    const frameWidth = sprite.frame?.realWidth ?? sourceRadius * 2
-    const frameHeight = sprite.frame?.realHeight ?? sourceRadius * 2
-    const offsetX = frameWidth / 2 - sourceRadius
-    const offsetY = frameHeight / 2 - sourceRadius
-    body.setCircle(sourceRadius, offsetX, offsetY)
-  }
-
-  private spawnEnemyVariant(cx: number, cy: number, elapsedSec: number) {
-    // Choose type by time: fodder, chaser, tank
-    const roll = Math.random()
-    let type: 'fodder' | 'chaser' | 'tank' = 'fodder'
-    if (elapsedSec > 120 && roll < 0.15) type = 'tank'
-    else if (elapsedSec > 45 && roll < 0.45) type = 'chaser'
-
-    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 80
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(inner, outer)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-
-    // Use appropriate sprite for each enemy type
-    let textureKey: string
-    if (type === 'chaser') {
-      textureKey = 'enemy-chaser'
-    } else if (type === 'fodder') {
-      textureKey = 'enemy-fodder'
-    } else if (type === 'tank') {
-      textureKey = 'enemy-tank'
-    } else {
-      textureKey = this.enemyTextureKey
-    }
-    
-    const enemy = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
-    enemy.setTexture(textureKey)
-    enemy.setActive(true).setVisible(true)
-    enemy.setAlpha(1)
-    enemy.setDepth(10)
-    enemy.setOrigin(0.5, 0.5)
-    enemy.setRotation(0)
-    enemy.clearTint()
-
-    // Set appropriate scale based on enemy type BEFORE enabling physics body
-    if (type === 'chaser') {
-      enemy.setScale(0.0234375) // Scale to 24x24px (24/1024 = 0.0234375)
-    } else if (type === 'fodder') {
-      enemy.setScale(0.017578125) // Scale to 18x18px (18/1024 = 0.017578125)
-    } else if (type === 'tank') {
-      enemy.setScale(0.03125) // Scale to 32x32px (32/1024 = 0.03125)
-    } else {
-      enemy.setScale(1)
-    }
-    
-    // Enable physics body AFTER scaling
-    enemy.enableBody(true, x, y, true, true)
-    
-    // Set physics body size AFTER enabling body
-    let hitboxRadius: number
-    if (type === 'chaser') {
-      hitboxRadius = 12 // 24px diameter for 24px chaser
-    } else if (type === 'fodder') {
-      hitboxRadius = 9 // 18px diameter for 18px fodder
-    } else if (type === 'tank') {
-      hitboxRadius = 16 // 32px diameter for 32px tank
-    } else {
-      hitboxRadius = 3 // Original hitbox for other enemies
-    }
-    this.setCircleHitbox(enemy, hitboxRadius)
-    enemy.setCollideWorldBounds(false)
-    // Reset pooled flags so non-elites don't inherit elite state
-    ;(enemy as any).elite = false
-    ;(enemy as any).isElite = false
-    // Non-chasers reapply tint after body setup
-
-    const elapsed = (this.time.now - this.levelStartMs) / 1000
-    const touch = 1 + Math.floor(elapsed / 90)
-
-    // Base HP and per-level caps: fodder easy early; cap modestly
-    const playerLevel = (this.registry.get('level') as number) || 1
-    const hpScale = 1 + Math.min(playerLevel - 1, 8) * 0.2 // cap +160%
-    if (type === 'fodder') {
-      ;(enemy as any).hp = Math.max(1, Math.round(2 * hpScale))
-      ;(enemy as any).chase = 42
-      ;(enemy as any).touchDamage = touch
-      // No tint needed - fodder has its own sprite
-    } else if (type === 'chaser') {
-      ;(enemy as any).hp = Math.round(4 * hpScale)
-      ;(enemy as any).chase = 64
-      ;(enemy as any).touchDamage = touch
-      // No tint needed - chaser has its own sprite
-    } else if (type === 'tank') {
-      ;(enemy as any).hp = Math.round(7 * hpScale)
-      ;(enemy as any).chase = 24
-      ;(enemy as any).touchDamage = touch + 1
-      // No tint needed - tank has its own sprite
-    } else {
-      ;(enemy as any).hp = Math.round(7 * hpScale)
-      ;(enemy as any).chase = 24
-      ;(enemy as any).touchDamage = touch + 1
-      enemy.setTint(0xaaaa55)
-    }
-    ;(enemy as any).stunUntil = 0
-
-    // Chance to spawn elite variant: boosted stats and distinct color.
-    // Scale over level time and cap global ratio.
-    const remain = this.remainingSec
-    const total = (runState.state?.levelDurationSec ?? 900)
-    const progress = 1 - Math.max(0, Math.min(1, remain / Math.max(1, total)))
-    if (!('eliteStats' in (this as any))) {
-      ;(this as any).eliteStats = { total: 0, elite: 0 }
-    }
-    ;(this as any).eliteStats.total++
-    const stats = (this as any).eliteStats
-    const curRatio = stats.elite / Math.max(1, stats.total)
-    // Reduce base spawn chance for elites; ramp late but stay sparse
-    const baseChance = 0.004 + progress * 0.015 + (remain <= 120 ? 0.03 : 0)
-    const targetMax = Math.min(0.2, 0.03 + progress * 0.12)
-    if (Math.random() < baseChance && curRatio < targetMax) {
-      stats.elite++
-      ;(enemy as any).elite = true
-      // Significantly higher HP for elites
-      ;(enemy as any).hp = Math.round(((enemy as any).hp || 4) * 4.5)
-      ;(enemy as any).chase = Math.max(16, Math.round(((enemy as any).chase || 40) * 0.85))
-      ;(enemy as any).touchDamage = ((enemy as any).touchDamage || 1) + 1
-      enemy.setTint(0xff00ff)
-      enemy.setScale(enemy.scaleX * 1.15, enemy.scaleY * 1.15)
-      ;(enemy as any).isElite = true
-      // Some elites shoot projectiles periodically
-      if (Math.random() < 0.5) {
-        const fireDelay = Phaser.Math.Between(1200, 1800)
-        const timer = this.time.addEvent({ delay: fireDelay, loop: true, callback: () => {
-          if (!enemy.active) { timer.remove(false); return }
-          const ang = this.player ? Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x) : Math.random() * Math.PI * 2
-          this.spawnEnemyBullet(enemy.x, enemy.y, Phaser.Math.RadToDeg(ang))
-        }})
-        // Tie timer lifetime to enemy
-        ;(enemy as any).on('destroy', () => timer.remove(false))
-      }
-    }
-  }
-
-  private spawnBoss(cx: number, cy: number, type?: number) {
-    const radius = Math.hypot(this.scale.width, this.scale.height) * 0.4
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-    
-    // Use boss sprite for type 1, enemy square for others
-    const bossType = type ?? (runState.state?.level ?? 1)
-    const textureKey = bossType === 1 ? 'boss-1' : this.enemyTextureKey
-    
-    const boss = (this.enemies.get(x, y, textureKey) as Phaser.Physics.Arcade.Sprite) ||
-      (this.enemies.create(x, y, textureKey) as Phaser.Physics.Arcade.Sprite)
-    boss.setTexture(textureKey)
-    boss.setActive(true).setVisible(true)
-    boss.setAlpha(1)
-    boss.setOrigin(0.5, 0.5)
-    boss.setRotation(0)
-
-    // Set appropriate scale based on boss type BEFORE enabling physics body
-    if (bossType === 1) {
-      boss.setScale(0.046875) // Scale to 48x48px (48/1024 = 0.046875)
-    } else {
-      boss.setScale(2) // Original scale for other bosses
-    }
-
-    // Enable physics body AFTER scaling
-    boss.enableBody(true, x, y, true, true)
-    
-    // Set physics body size AFTER enabling body
-    this.setCircleHitbox(boss, bossType === 1 ? 20 : 6)
-    ;(boss as any).hp = type === 5 ? 260 : 80
-    ;(boss as any).hpMax = (boss as any).hp
-    ;(boss as any).touchDamage = 2
-    ;(boss as any).chase = 25
-    ;(boss as any).isBoss = true
-    this.registry.set('boss-hp', { cur: (boss as any).hp, max: (boss as any).hpMax || (boss as any).hp })
-    this.clearNonBossEnemies()
-    this.clearBossTimers()
-    this.currentBoss = boss
-    this.currentBossType = type ?? (runState.state?.level ?? 1)
-    this.currentBossPhase = -1
-    this.configureBossPhase()
-  }
-
-  private spawnNextGauntletBoss(cx: number, cy: number) {
-    // Stages 0-3: previous 4 bosses placeholder; stage 4: final boss
-    if (this.gauntletStage < 4) {
-      this.spawnBoss(cx, cy, this.gauntletStage + 1)
-      this.bossActive = true
-    } else {
-      // Final boss with extra HP
-      const radius = Math.hypot(this.scale.width, this.scale.height) * 0.35
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-      const x = cx + Math.cos(angle) * radius
-      const y = cy + Math.sin(angle) * radius
-      const boss = (this.enemies.get(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite) ||
-        (this.enemies.create(x, y, this.enemyTextureKey) as Phaser.Physics.Arcade.Sprite)
-      boss.setTexture(this.enemyTextureKey)
-      boss.setActive(true).setVisible(true)
-      boss.setAlpha(1)
-      boss.setOrigin(0.5, 0.5)
-      boss.setRotation(0)
-      boss.enableBody(true, x, y, true, true)
-      boss.setScale(2.2)
-      this.setCircleHitbox(boss, 7)
-      ;(boss as any).hp = 260
-      ;(boss as any).hpMax = 260
-      ;(boss as any).touchDamage = 3
-      ;(boss as any).chase = 30
-      ;(boss as any).isBoss = true
-      this.bossActive = true
-      this.registry.set('boss-hp', { cur: (boss as any).hp, max: (boss as any).hpMax || (boss as any).hp })
-      this.clearNonBossEnemies()
-      this.clearBossTimers()
-      // Final boss combo patterns
-      let a = 0
-      this.bossTimers.push(this.time.addEvent({ delay: 60, loop: true, callback: () => {
-        if (!boss.active) return
-        const c = { x: boss.x, y: boss.y }
-        this.spawnEnemyBullet(c.x, c.y, a)
-        a = (a + 24) % 360
-      }}))
-    }
-  }
-
-  private clearNonBossEnemies() {
-    const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
-    for (const enemy of children) {
-      if (!enemy || !enemy.active) continue
-      if (!(enemy as any).isBoss) enemy.disableBody(true, true)
-    }
-  }
-
-  private clearBossTimers() {
-    for (const t of this.bossTimers) t.remove(false)
-    this.bossTimers = []
-  }
-
-  private configureBossPhase() {
-    const boss = this.currentBoss
-    if (!boss || !boss.active) return
-    const hp = (boss as any).hp as number
-    const hpMax = (boss as any).hpMax as number
-    const pct = Math.max(0, Math.min(1, hp / Math.max(1, hpMax)))
-    let nextPhase = 0
-    if (this.currentBossType === 5) {
-      // Final boss thresholds: >66%, 66–33%, <33–15%, <14%
-      if (pct > 0.66) nextPhase = 0
-      else if (pct > 0.33) nextPhase = 1
-      else if (pct > 0.15) nextPhase = 2
-      else nextPhase = 3
-    } else {
-      // Bosses 1–4: >66%, 66–33%, <33%
-      if (pct > 0.66) nextPhase = 0
-      else if (pct > 0.33) nextPhase = 1
-      else nextPhase = 2
-    }
-    if (nextPhase === this.currentBossPhase) return
-    this.currentBossPhase = nextPhase
-    this.clearBossTimers()
-
-    // Reconfigure timers by boss type and phase
-    const c = () => ({ x: boss.x, y: boss.y })
-    const aimToPlayer = () => this.player ? Math.atan2(this.player.y - boss.y, this.player.x - boss.x) : 0
-
-    if (this.currentBossType === 1) {
-      // Radial volleys → faster, denser
-      const bursts = [12, 16, 20]
-      const delays = [1400, 1100, 900]
-      const i = Math.min(this.currentBossPhase, 2)
-      this.bossTimers.push(this.time.addEvent({ delay: delays[i], loop: true, callback: () => {
-        if (!boss.active) return
-        const center = c()
-        const count = bursts[i]
-        for (let k = 0; k < count; k++) this.spawnEnemyBullet(center.x, center.y, (k / count) * 360)
-      }}))
-    } else if (this.currentBossType === 2) {
-      // Spiral stream → speed/rate ramps
-      let a = 0
-      const delays = [90, 70, 55]
-      const step = [18, 22, 26]
-      const i = Math.min(this.currentBossPhase, 2)
-      this.bossTimers.push(this.time.addEvent({ delay: delays[i], loop: true, callback: () => {
-        if (!boss.active) return
-        const center = c()
-        this.spawnEnemyBullet(center.x, center.y, a)
-        a = (a + step[i]) % 360
-      }}))
-    } else if (this.currentBossType === 3) {
-      // Dashes → shorter telegraph, faster dash per phase
-      const tele = [350, 300, 240]
-      const spd = [160, 190, 220]
-      const dur = [420, 450, 520]
-      const i = Math.min(this.currentBossPhase, 2)
-      this.bossTimers.push(this.time.addEvent({ delay: 2200 - i * 300, loop: true, callback: () => {
-        if (!boss.active) return
-        const ang = aimToPlayer()
-        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 140, boss.y + Math.sin(ang) * 140, tele[i])
-        this.time.delayedCall(tele[i], () => {
-          if (!boss.active) return
-          boss.setVelocity(Math.cos(ang) * spd[i], Math.sin(ang) * spd[i])
-          this.time.delayedCall(dur[i], () => boss.active && boss.setVelocity(0, 0))
-        })
-      }}))
-    } else if (this.currentBossType === 4) {
-      // Ring burst → more telegraphs, then bigger burst
-      const ringR = [60, 68, 76]
-      const count = [10, 14, 18]
-      const tele = [400, 350, 300]
-      const delay = [2500, 2200, 1900]
-      const i = Math.min(this.currentBossPhase, 2)
-      this.bossTimers.push(this.time.addEvent({ delay: delay[i], loop: true, callback: () => {
-        if (!boss.active) return
-        const center = c()
-        for (let k = 0; k < count[i]; k++) {
-          const ang = (k / count[i]) * Math.PI * 2
-          const rx = center.x + Math.cos(ang) * ringR[i]
-          const ry = center.y + Math.sin(ang) * ringR[i]
-          this.showTelegraphCircle(rx, ry, 8, tele[i])
-        }
-        this.time.delayedCall(tele[i], () => {
-          if (!boss.active) return
-          for (let k = 0; k < count[i]; k++) this.spawnEnemyBullet(center.x, center.y, (k / count[i]) * 360)
-        })
-      }}))
-    } else {
-      // Final boss multi-phase combo
-      if (this.currentBossPhase === 0) {
-        // Faster spiral
-        let a = 0
-        this.bossTimers.push(this.time.addEvent({ delay: 70, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          this.spawnEnemyBullet(center.x, center.y, a)
-          a = (a + 20) % 360
-        }}))
-      } else if (this.currentBossPhase === 1) {
-        // Spiral + occasional dash
-        let a = 0
-        this.bossTimers.push(this.time.addEvent({ delay: 65, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          this.spawnEnemyBullet(center.x, center.y, a)
-          a = (a + 22) % 360
-        }}))
-        this.bossTimers.push(this.time.addEvent({ delay: 2600, loop: true, callback: () => {
-          if (!boss.active) return
-          const ang = aimToPlayer()
-          this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 150, boss.y + Math.sin(ang) * 150, 320)
-          this.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185, Math.sin(ang) * 185))
-          this.time.delayedCall(670, () => boss.active && boss.setVelocity(0, 0))
-        }}))
-      } else if (this.currentBossPhase === 2) {
-        // Add ring bursts
-        let a = 0
-        this.bossTimers.push(this.time.addEvent({ delay: 60, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          this.spawnEnemyBullet(center.x, center.y, a)
-          a = (a + 24) % 360
-        }}))
-        this.bossTimers.push(this.time.addEvent({ delay: 2000, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          const cnt = 16
-          for (let k = 0; k < cnt; k++) this.spawnEnemyBullet(center.x, center.y, (k / cnt) * 360)
-        }}))
-      } else {
-        // Enrage: fast dashes + dense rings
-        let a = 0
-        this.bossTimers.push(this.time.addEvent({ delay: 55, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          this.spawnEnemyBullet(center.x, center.y, a)
-          a = (a + 26) % 360
-        }}))
-        this.bossTimers.push(this.time.addEvent({ delay: 1600, loop: true, callback: () => {
-          if (!boss.active) return
-          const center = c()
-          const cnt = 22
-          for (let k = 0; k < cnt; k++) this.spawnEnemyBullet(center.x, center.y, (k / cnt) * 360)
-        }}))
-        this.bossTimers.push(this.time.addEvent({ delay: 2200, loop: true, callback: () => {
-          if (!boss.active) return
-          const ang = aimToPlayer()
-          this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 160, boss.y + Math.sin(ang) * 160, 260)
-          this.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200, Math.sin(ang) * 200))
-          this.time.delayedCall(600, () => boss.active && boss.setVelocity(0, 0))
-        }}))
-      }
-    }
-  }
-
-  private updateEnemies(cx: number, cy: number) {
-    const despawnRadius = Math.hypot(this.scale.width, this.scale.height)
-    const chaseSpeedBase = 40
-    const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
-    for (const enemy of children) {
-      if (!enemy || !enemy.active || !this.player) continue
-      // ensure body is enabled and visible if active
-      if (!enemy.body) enemy.enableBody(true, enemy.x, enemy.y, true, true)
-      // skip chase while stunned
-      const stunUntil = ((enemy as any).stunUntil as number) || 0
-      if (this.time.now < stunUntil) continue
-      const chaseSpeed = ((enemy as any).chase as number) || chaseSpeedBase
-      const dx = this.player.x - enemy.x
-      const dy = this.player.y - enemy.y
-      const len = Math.hypot(dx, dy) || 1
-      enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
-      
-      // Rotate chaser, fodder, and tank enemies to face movement direction (front is top of image)
-      if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder' || enemy.texture.key === 'enemy-tank')) {
-        // Use normalized movement direction like the player
-        const moveX = dx / len
-        const moveY = dy / len
-        // Only rotate when actually moving (same threshold as player)
-        if (Math.hypot(moveX, moveY) > 0.1) {
-          const angle = Math.atan2(moveY, moveX) + Math.PI / 2
-          enemy.setRotation(angle)
-        }
-      }
-
-      const dcx = enemy.x - cx
-      const dcy = enemy.y - cy
-      const distCam = Math.hypot(dcx, dcy)
-      if (distCam > despawnRadius * 1.5) enemy.disableBody(true, true)
-    }
-  }
-
-  private ensureAsteroidObstacles() {
-    if (!this.asteroidStatics) {
-      this.asteroidStatics = this.physics.add.group({ immovable: true, allowGravity: false, maxSize: 40 })
-      if (this.player) this.physics.add.collider(this.player, this.asteroidStatics, (_p, a) => this.onAsteroidHit(_p as any, a as any))
-      this.physics.add.collider(this.enemies, this.asteroidStatics, (_e, a) => this.onAsteroidHit(_e as any, a as any))
-    }
-    if (!this.asteroidMovers) {
-      this.asteroidMovers = this.physics.add.group({ allowGravity: false, maxSize: 20 })
-      if (this.player) this.physics.add.collider(this.player, this.asteroidMovers, (_p, a) => this.onAsteroidHit(_p as any, a as any))
-      this.physics.add.collider(this.enemies, this.asteroidMovers, (_e, a) => this.onAsteroidHit(_e as any, a as any))
-    }
-    if (!this.textures.exists('asteroid-rock')) {
-      const g = this.add.graphics(); g.fillStyle(0x7a7f88, 1); g.fillCircle(8, 8, 8); g.fillStyle(0x9aa0aa, 1); g.fillCircle(5, 6, 3); g.generateTexture('asteroid-rock', 16, 16); g.destroy()
-    }
-  }
-
-  private spawnAsteroidStatic(cx: number, cy: number) {
-    this.ensureAsteroidObstacles()
-    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 120
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(inner, outer)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-    const a = this.asteroidStatics!.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
-    if (!a) return
-    a.enableBody(true, x, y, true, true)
-    a.setCircle(7, 1, 1)
-    a.setImmovable(true)
-    ;(a as any).isAsteroid = true
-    ;(a as any).damageCooldownUntil = 0
-  }
-
-  private spawnAsteroidMover(cx: number, cy: number) {
-    this.ensureAsteroidObstacles()
-    const viewRadius = Math.hypot(this.scale.width, this.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 140
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
-    const radius = Phaser.Math.FloatBetween(inner, outer)
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
-    const a = this.asteroidMovers!.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
-    if (!a) return
-    a.enableBody(true, x, y, true, true)
-    a.setCircle(7, 1, 1)
-    ;(a as any).isAsteroid = true
-    ;(a as any).damageCooldownUntil = 0
-    const toCenter = Math.atan2(cy - y, cx - x)
-    const speed = Phaser.Math.Between(12, 28)
-    a.setVelocity(Math.cos(toCenter) * speed, Math.sin(toCenter) * speed)
-    a.setAngularVelocity(Phaser.Math.Between(-40, 40))
-  }
-
   private onAsteroidHit(objA: Phaser.Physics.Arcade.Sprite, objB: Phaser.Physics.Arcade.Sprite) {
     const now = this.time.now
     const hurt = (t: Phaser.Physics.Arcade.Sprite, amount: number, src: Phaser.Physics.Arcade.Sprite) => {
-      if (t === this.player) {
+      if (t === this.player && this.progressManager) {
         if (this.hurtCooldown > 0) return
         this.hurtCooldown = 0.6
-        this.hpCur = Math.max(0, this.hpCur - amount)
-        this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+        const result = this.progressManager.takeDamage(amount)
+        this.stats.hpCur = result.hpCur
+        this.stats.hpMax = result.hpMax
+        audio.sfxHurt()
         const ang = Math.atan2(this.player!.y - src.y, this.player!.x - src.x)
         this.player!.setVelocity(Math.cos(ang) * 120, Math.sin(ang) * 120)
-        if (this.hpCur <= 0) { this.scene.stop('HUD'); this.scene.start('GameOver') }
+        if (result.died) {
+          audio.stopMusic()
+          this.scene.stop('HUD')
+          this.scene.start('GameOver')
+        }
       } else {
         ;(t as any).hp = Math.max(0, ((t as any).hp ?? 2) - amount)
         if ((t as any).hp <= 0) t.disableBody(true, true)
@@ -2099,248 +940,5 @@ export default class GameScene extends Phaser.Scene {
     }
     if ((objA as any).isAsteroid) tryDamage(objA, objB)
     else if ((objB as any).isAsteroid) tryDamage(objB, objA)
-  }
-
-  private createXPGemTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 6
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0x66ccff, 1)
-    gfx.fillTriangle(3, 0, 6, 3, 0, 3)
-    gfx.fillTriangle(0, 3, 6, 3, 3, 6)
-    gfx.generateTexture(key, size, size)
-    gfx.destroy()
-  }
-
-  private createXPGemEliteTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 6
-    const g = this.add.graphics()
-    // purple gem
-    g.fillStyle(0xaa66ff, 1)
-    g.fillTriangle(3, 0, 6, 3, 0, 3)
-    g.fillTriangle(0, 3, 6, 3, 3, 6)
-    // small white glint
-    g.fillStyle(0xffffff, 0.9)
-    g.fillRect(2, 1, 1, 1)
-    g.generateTexture(key, size, size)
-    g.destroy()
-  }
-
-  private createGoldTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 6
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0xffcc33, 1)
-    gfx.fillCircle(size / 2, size / 2, size / 2)
-    gfx.generateTexture(key, size, size)
-    gfx.destroy()
-  }
-
-  private createGoldEliteTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 8
-    const g = this.add.graphics()
-    // coin base
-    g.fillStyle(0xffcc33, 1)
-    g.fillCircle(size / 2, size / 2, size / 2 - 1)
-    // star glint (simple 4-point star using triangles)
-    g.fillStyle(0xffffff, 0.95)
-    const cx = size / 2, cy = size / 2
-    g.fillTriangle(cx, cy - 2, cx - 1, cy, cx + 1, cy)
-    g.fillTriangle(cx, cy + 2, cx - 1, cy, cx + 1, cy)
-    g.fillTriangle(cx - 2, cy, cx, cy - 1, cx, cy + 1)
-    g.fillTriangle(cx + 2, cy, cx, cy - 1, cx, cy + 1)
-    g.generateTexture(key, size, size)
-    g.destroy()
-  }
-
-  private createPowerupTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 8
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0x99ffcc, 1)
-    gfx.fillRect(0, 0, size, size)
-    gfx.fillStyle(0x006644, 1)
-    gfx.fillRect(2, 2, size - 4, size - 4)
-    gfx.generateTexture(key, size, size)
-    gfx.destroy()
-  }
-
-  private applyPowerupReward(): string | null {
-    const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-    // Choose a random owned weapon or accessory
-    const owned: { kind: 'w' | 'a'; key: string; level: number }[] = []
-    for (const w of inv.weapons) owned.push({ kind: 'w', key: w.key, level: w.level })
-    for (const a of inv.accessories) owned.push({ kind: 'a', key: a.key, level: a.level })
-    if (owned.length === 0) {
-      // fallback: give gold
-      this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 25)
-      return 'Gold +25'
-    }
-    const pick = Phaser.Utils.Array.GetRandom(owned)
-    const isMax = pick.kind === 'w' ? pick.level >= MAX_WEAPON_LEVEL : pick.level >= MAX_ACCESSORY_LEVEL
-    if (isMax) {
-      // 50 gold or full heal
-      if (Math.random() < 0.5) {
-        this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 50)
-        return 'Gold +50'
-      } else {
-        this.hpCur = this.hpMax
-        this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-        return 'Full Heal'
-      }
-    }
-    if (pick.kind === 'w') {
-      // level up weapon
-      const w = inv.weapons.find((x) => x.key === pick.key)
-      if (w) w.level = Math.min(MAX_WEAPON_LEVEL, w.level + 1)
-      this.registry.set('inv', inv)
-      this.registry.set('inv-weapons', describeWeapons(inv))
-      this.recomputeEffectiveStats()
-      return `${pick.key} Lv${w?.level}`
-    } else {
-      const a = inv.accessories.find((x) => x.key === pick.key)
-      if (a) a.level = Math.min(MAX_ACCESSORY_LEVEL, a.level + 1)
-      this.registry.set('inv', inv)
-      this.registry.set('inv-accessories', describeAccessories(inv))
-      this.recomputeEffectiveStats()
-      return `${pick.key} Lv${a?.level}`
-    }
-    return null
-  }
-
-  private createHealthTexture(key: string) {
-    if (this.textures.exists(key)) return
-    const size = 7
-    const gfx = this.add.graphics()
-    gfx.fillStyle(0x33ff66, 1)
-    gfx.fillRect(0, 0, size, size)
-    gfx.fillStyle(0xffffff, 1)
-    // simple plus sign
-    gfx.fillRect(size/2 - 1, 1, 2, size - 2)
-    gfx.fillRect(1, size/2 - 1, size - 2, 2)
-    gfx.generateTexture(key, size, size)
-    gfx.destroy()
-  }
-
-  private updatePickups(cx: number, cy: number) {
-    const despawnRadius = Math.hypot(this.scale.width, this.scale.height)
-    const groups = [this.xpGroup, this.goldGroup, this.healthGroup, this.powerupGroup]
-    for (const g of groups) {
-      const children = g.getChildren() as Phaser.Physics.Arcade.Sprite[]
-      for (const obj of children) {
-        const dcx = obj.x - cx
-        const dcy = obj.y - cy
-        const distCam = Math.hypot(dcx, dcy)
-        if (distCam > despawnRadius * 1.5) obj.disableBody(true, true)
-
-        // Magnet collection radius around player
-        if (this.player) {
-          const dx = obj.x - this.player.x
-          const dy = obj.y - this.player.y
-          const d = Math.hypot(dx, dy)
-          if (d < this.magnetRadius) {
-            const pull = 80
-            const nx = dx / (d || 1)
-            const ny = dy / (d || 1)
-            obj.body && (obj.body as Phaser.Physics.Arcade.Body).setVelocity(-nx * pull, -ny * pull)
-          }
-        }
-      }
-    }
-  }
-
-  private checkLevelProgress(currentXP: number) {
-    if (currentXP >= this.xpToNext) {
-      this.level += 1
-      this.registry.set('level', this.level)
-      this.registry.set('xp', 0)
-      this.xpToNext = Math.floor(this.xpToNext * 1.5 + 3)
-      this.tryEvolveWeapons()
-      // Pause gameplay and freeze level timer
-      this.scene.pause()
-      this.time.timeScale = 0
-      audio.sfxLevelUp()
-      // Build 3-of-N choices
-      const pool = [
-        { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
-        { key: 'firerate', label: 'Blaster +15% fire rate', color: '#88ff88' },
-        { key: 'damage', label: 'Blaster +1 damage', color: '#ff8866' },
-        { key: 'multishot', label: 'Blaster +1 projectile', color: '#ccccff' },
-        { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
-        { key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' },
-        { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam', color: '#33ff99' },
-        { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' },
-        { key: 'acc-power-cell', label: 'Accessory: Power Cell', color: '#ff8866' },
-        { key: 'acc-splitter', label: 'Accessory: Splitter', color: '#ccccff' },
-        { key: 'w-laser', label: 'Weapon: Laser', color: '#ff66ff' },
-        { key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' },
-        { key: 'w-orb', label: 'Weapon: Orb', color: '#66ccff' },
-      ]
-      const choices = Phaser.Utils.Array.Shuffle(pool).slice(0, 3)
-      this.scene.launch('LevelUp', { choices })
-      // Apply choice when LevelUpScene emits
-      const applyOnce = (key: string) => {
-        if (this.bonusLevelsUsed >= this.maxBonusLevels) { this.game.events.off('levelup-apply', applyOnce as any); this.scene.resume(); return }
-        // speed and magnet inline bonuses removed (use accessories instead)
-        if (key === 'gold') this.registry.set('gold', ((this.registry.get('gold') as number) || 0) + 5)
-        if (key === 'firerate') { this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15); this.bonusLevelsUsed++ }
-        if (key === 'damage') { this.bonusDamage = Math.min(99, this.bonusDamage + 1); this.bonusLevelsUsed++ }
-        if (key === 'multishot') { this.inlineExtraProjectiles = Math.min(6, this.inlineExtraProjectiles + 1); this.bonusLevelsUsed++ }
-        if (key === 'hpmax') {
-          const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
-          this.hpMax = Math.min(99, this.hpMax + inc)
-          this.hpCur = Math.min(this.hpMax, this.hpCur + inc) // small immediate heal
-          this.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
-          this.bonusLevelsUsed++
-        }
-        // Accessories
-        if (key.startsWith('acc-')) {
-          const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-          const cleanKey = key.replace('acc-', '')
-          addAccessory(inv, cleanKey)
-          this.registry.set('inv', inv)
-          this.registry.set('inv-accessories', describeAccessories(inv))
-        }
-        // Weapons
-        if (key.startsWith('w-')) {
-          const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-          const wKey = key.replace('w-', '') as any
-          console.log(`[WEAPON DEBUG] Adding new weapon: ${wKey}`)
-          addWeapon(inv, wKey)
-          this.registry.set('inv', inv)
-          this.registry.set('inv-weapons', describeWeapons(inv))
-        }
-        this.recomputeEffectiveStats()
-        
-        // Reset ALL weapon cooldowns AFTER recomputeEffectiveStats to use the correct fireRate
-        if (key.startsWith('w-')) {
-          const inv = (this.registry.get('inv') as InventoryState) || createInventory()
-          const correctCooldown = 1 / Math.max(0.1, this.fireRate)
-          console.log(`[WEAPON DEBUG] Resetting all weapon cooldowns to ${correctCooldown.toFixed(3)}s (fireRate: ${this.fireRate})`)
-          
-          // Reset all existing weapon cooldowns
-          if (inv.weapons.some(w => w.key.includes('blaster'))) {
-            this.weaponCooldowns['blaster'] = correctCooldown
-            console.log(`[WEAPON DEBUG] Reset blaster cooldown to ${correctCooldown.toFixed(3)}s`)
-          }
-          if (inv.weapons.some(w => w.key.includes('missile'))) {
-            this.weaponCooldowns['missiles'] = correctCooldown
-            console.log(`[WEAPON DEBUG] Reset missiles cooldown to ${correctCooldown.toFixed(3)}s`)
-          }
-          if (inv.weapons.some(w => w.key.includes('orb'))) {
-            this.weaponCooldowns['orbs'] = correctCooldown
-            console.log(`[WEAPON DEBUG] Reset orbs cooldown to ${correctCooldown.toFixed(3)}s`)
-          }
-          console.log('[WEAPON DEBUG] Weapon cooldowns after adding new weapon:', this.weaponCooldowns)
-        }
-        this.game.events.off('levelup-apply', applyOnce as any)
-        // Resume gameplay and unfreeze level timer
-        this.time.timeScale = 1
-        this.scene.resume()
-      }
-      this.game.events.on('levelup-apply', applyOnce as any)
-    }
   }
 }
