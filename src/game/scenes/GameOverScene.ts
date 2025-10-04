@@ -26,7 +26,7 @@ export default class GameOverScene extends Phaser.Scene {
     retryBtn.on('pointerdown', () => this.retry())
     titleBtn.on('pointerdown', () => this.toTitle())
     // Explanatory note placed below buttons so it isn't obscured
-    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry: Full HP; Level 1 resets all, others use checkpoint.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
+    this.add.text(width / 2, titleBtn.y + 16 + 8, 'On Retry HP level-ups carry over to your next run. Everything else is resets.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
 
     ensureMobileGamepadInit(this)
     attachGamepad(this, { confirm: () => this.retry(), cancel: () => this.toTitle() })
