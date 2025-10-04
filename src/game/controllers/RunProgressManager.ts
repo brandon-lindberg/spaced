@@ -55,12 +55,27 @@ export class RunProgressManager {
   private hurtCooldown = 0
   private inventory: InventoryState = createInventory()
 
+  private ensureHpIntegrity() {
+    const fallbackMax = Number.isFinite(this.hpMax) && this.hpMax > 0 ? this.hpMax : 10
+    this.hpMax = Math.max(1, Math.min(99, Math.floor(fallbackMax)))
+    if (!Number.isFinite(this.hpCur)) {
+      this.hpCur = this.hpMax
+    }
+    this.hpCur = Math.max(0, Math.min(this.hpMax, Math.floor(this.hpCur)))
+  }
+
+  private syncHpToRegistry() {
+    this.ensureHpIntegrity()
+    this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+  }
+
   constructor(scene: Phaser.Scene, events: ProgressEventHandlers) {
     this.scene = scene
     this.events = events
   }
 
   getStats(): StatsSnapshot {
+    this.ensureHpIntegrity()
     return {
       fireRate: this.fireRate,
       bulletDamage: this.bulletDamage,
@@ -113,6 +128,7 @@ export class RunProgressManager {
   }
 
   getHP() {
+    this.ensureHpIntegrity()
     return { hpCur: this.hpCur, hpMax: this.hpMax }
   }
 
@@ -132,13 +148,21 @@ export class RunProgressManager {
   }
 
   initializeFromRegistry() {
-    const hpReg = this.scene.registry.get('hp') as { cur: number; max: number } | undefined
+    const hpReg = this.scene.registry.get('hp') as { cur?: unknown; max?: unknown } | undefined
     if (hpReg) {
-      this.hpMax = hpReg.max
-      this.hpCur = Math.max(0, Math.min(hpReg.cur, hpReg.max))
-    } else {
-      this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      const rawMax = typeof hpReg.max === 'number' ? hpReg.max : Number(hpReg.max)
+      const rawCur = typeof hpReg.cur === 'number' ? hpReg.cur : Number(hpReg.cur)
+      if (Number.isFinite(rawMax) && rawMax > 0) {
+        this.hpMax = rawMax
+      }
+      if (Number.isFinite(rawCur)) {
+        this.hpCur = rawCur
+      }
+      if (Number.isFinite(rawCur) && Number.isFinite(rawMax) && rawMax > 0) {
+        this.hpCur = Math.max(0, Math.min(rawCur, rawMax))
+      }
     }
+    this.syncHpToRegistry()
 
     const currentLevel = this.scene.registry.get('level')
     if (currentLevel === undefined || currentLevel === null) {
@@ -198,24 +222,27 @@ export class RunProgressManager {
   }
 
   takeDamage(amount: number) {
+    this.ensureHpIntegrity()
     if (!this.canTakeDamage()) return { hpCur: this.hpCur, hpMax: this.hpMax, died: false }
     this.hurtCooldown = 0.8
     this.hpCur = Math.max(0, this.hpCur - amount)
-    this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    this.syncHpToRegistry()
     return { hpCur: this.hpCur, hpMax: this.hpMax, died: this.hpCur <= 0 }
   }
 
   healByPercent(percent: number, min = 1) {
+    this.ensureHpIntegrity()
     const heal = Math.max(min, Math.ceil(this.hpMax * percent))
     this.hpCur = Math.min(this.hpMax, this.hpCur + heal)
-    this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    this.syncHpToRegistry()
     this.events.onStatsChanged(this.getStats())
     return this.hpCur
   }
 
   fullHeal() {
+    this.ensureHpIntegrity()
     this.hpCur = this.hpMax
-    this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    this.syncHpToRegistry()
     this.events.onStatsChanged(this.getStats())
   }
 
@@ -338,10 +365,11 @@ export class RunProgressManager {
       this.inlineExtraProjectiles = Math.min(6, this.inlineExtraProjectiles + 1)
       this.bonusLevelsUsed++
     } else if (choiceKey === 'hpmax') {
+      this.ensureHpIntegrity()
       const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
       this.hpMax = Math.min(99, this.hpMax + inc)
       this.hpCur = Math.min(this.hpMax, this.hpCur + inc)
-      this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+      this.syncHpToRegistry()
       this.bonusLevelsUsed++
     } else if (choiceKey.startsWith('acc-')) {
       const cleanKey = choiceKey.replace('acc-', '')

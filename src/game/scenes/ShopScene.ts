@@ -7,13 +7,24 @@ import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../s
 type ShopButton = {
   r: Phaser.GameObjects.Rectangle
   t: Phaser.GameObjects.Text
+  icon?: Phaser.GameObjects.Image
   onClick: () => void
   refreshLabel?: () => void
+  hideTooltip?: () => void
 }
 
 export default class ShopScene extends Phaser.Scene {
   private buttons: ShopButton[] = []
   private selectedIndex = 0
+  private rerollBuys = 0
+  private damageBoostPurchased = false
+
+  init(data?: { preserveState?: boolean }) {
+    if (!data?.preserveState) {
+      this.rerollBuys = 0
+      this.damageBoostPurchased = false
+    }
+  }
 
   constructor() {
     super('Shop')
@@ -56,7 +67,7 @@ export default class ShopScene extends Phaser.Scene {
       weapon: (level: number) => 30 + level * 20,
       accessory: (level: number) => 25 + level * 15,
       healFull: 60,
-      reroll: 25,
+      reroll: 100,
       dmg: (n: number) => 40 + n * 10,
       rate: (n: number) => 35 + n * 10,
       healSmall: (n: number) => 20 + n * 5,
@@ -83,6 +94,20 @@ export default class ShopScene extends Phaser.Scene {
 
     let contentHeight = 0
     let scrollOffset = 0
+    const visibleWindow = new Phaser.Geom.Rectangle(listArea.x, listArea.y, listArea.width, listArea.height)
+
+    const isButtonDisabled = (btn: ShopButton) => btn.r.getData('disabled') === true
+
+    const disableButton = (btn: ShopButton) => {
+      btn.r.setData('disabled', true)
+      btn.r.disableInteractive()
+      btn.r.setAlpha(0.6)
+      btn.t.setColor('#888888')
+      if (btn.icon) {
+        btn.icon.disableInteractive()
+        btn.icon.setAlpha(0.6)
+      }
+    }
 
     const updateFocus = () => {
       if (this.buttons.length === 0) {
@@ -94,6 +119,10 @@ export default class ShopScene extends Phaser.Scene {
         focus.clear()
         return
       }
+      if (isButtonDisabled(current)) {
+        focus.clear()
+        return
+      }
       const bounds = current.r.getBounds()
       focus.clear()
       focus.lineStyle(1, 0xffff66, 1)
@@ -101,6 +130,16 @@ export default class ShopScene extends Phaser.Scene {
     }
 
     const getMaxScroll = () => Math.max(0, contentHeight - listArea.height)
+    const updateButtonVisibility = () => {
+      for (const btn of this.buttons) {
+        if (btn.r.parentContainer !== listContainer) continue
+        const bounds = btn.r.getBounds()
+        const isVisible = Phaser.Geom.Rectangle.Overlaps(bounds, visibleWindow)
+        if (btn.r.input) btn.r.input.enabled = isVisible
+        if (btn.icon?.input) btn.icon.input.enabled = isVisible
+        if (!isVisible) btn.hideTooltip?.()
+      }
+    }
     const updateScrollbar = () => {
       const maxScroll = getMaxScroll()
       if (maxScroll <= 0 || contentHeight <= 0) {
@@ -120,6 +159,7 @@ export default class ShopScene extends Phaser.Scene {
       scrollOffset = Phaser.Math.Clamp(scrollOffset, 0, getMaxScroll())
       listContainer.y = listArea.y - scrollOffset
       updateScrollbar()
+      updateButtonVisibility()
       updateFocus()
     }
 
@@ -224,9 +264,12 @@ export default class ShopScene extends Phaser.Scene {
       const btn: ShopButton = {
         r: rect,
         t: text,
+        icon,
         onClick: handleClick,
         refreshLabel: typeof label === 'function' ? updateLabel : undefined,
+        hideTooltip,
       }
+      btn.r.setData('disabled', false)
 
       rect.on('pointerover', () => {
         const idx = this.buttons.indexOf(btn)
@@ -341,19 +384,30 @@ export default class ShopScene extends Phaser.Scene {
     }
 
     const game = this.scene.get('Game') as any
-    let dmgBuys = 0
+    let dmgBuys = this.damageBoostPurchased ? 1 : 0
     let rateBuys = 0
     let healSmallBuys = 0
+    const maxRerollsPerVisit = 3
 
     beginSection('Run Boosters')
-    createListButton(() => `+1 Damage (${price.dmg(dmgBuys)})`, () => {
+    const damageLabel = () => (this.damageBoostPurchased ? 'Power-up: +1 Damage (Sold Out)' : `Power-up: +1 Damage (${price.dmg(dmgBuys)})`)
+    const damageBtn = createListButton(damageLabel, () => {
+      if (this.damageBoostPurchased) return
       const cost = price.dmg(dmgBuys)
       if (getGold() < cost || !game) return
       setGold(getGold() - cost)
       game.bonusDamage = Math.min(99, (game.bonusDamage || 0) + 1)
       game.recomputeEffectiveStats && game.recomputeEffectiveStats()
       dmgBuys++
-    }, { tooltip: 'Increase base bullet damage for this run', iconKey: 'icon-weapon' })
+      this.damageBoostPurchased = true
+      damageBtn.refreshLabel?.()
+      disableButton(damageBtn)
+      updateButtonVisibility()
+    }, { tooltip: 'Increase base bullet damage for this run (once per visit)', iconKey: 'icon-weapon' })
+    if (this.damageBoostPurchased) {
+      damageBtn.refreshLabel?.()
+      disableButton(damageBtn)
+    }
     createListButton(() => `+10% Fire Rate (${price.rate(rateBuys)})`, () => {
       const cost = price.rate(rateBuys)
       if (getGold() < cost || !game) return
@@ -383,11 +437,28 @@ export default class ShopScene extends Phaser.Scene {
         this.registry.set('hp', { cur: game.hpCur, max: game.hpMax })
       }
     })
-    createListButton(`Reroll (${price.reroll})`, () => {
+    const rerollLabel = () => {
+      if (this.rerollBuys >= maxRerollsPerVisit) return 'Reroll (Sold Out)'
+      const remaining = maxRerollsPerVisit - this.rerollBuys
+      return `Reroll (${price.reroll}) - ${remaining} left`
+    }
+    let rerollBtn: ShopButton | null = null
+    rerollBtn = createListButton(rerollLabel, () => {
+      if (!rerollBtn) return
+      if (this.rerollBuys >= maxRerollsPerVisit) return
       if (getGold() < price.reroll) return
       setGold(getGold() - price.reroll)
-      this.scene.restart()
+      this.rerollBuys++
+      if (this.rerollBuys >= maxRerollsPerVisit) {
+        disableButton(rerollBtn)
+      }
+      rerollBtn.refreshLabel?.()
+      this.scene.restart({ preserveState: true })
     })
+    if (this.rerollBuys >= maxRerollsPerVisit && rerollBtn) {
+      rerollBtn.refreshLabel?.()
+      disableButton(rerollBtn)
+    }
 
     if (inv.weapons.length < MAX_WEAPONS || inv.accessories.length < MAX_ACCESSORIES) {
       beginSection('New Gear')
@@ -437,8 +508,14 @@ export default class ShopScene extends Phaser.Scene {
         const isSelected = index === this.selectedIndex
         const baseColor = btn.r.getData('baseColor') ?? 0x222233
         const hoverColor = btn.r.getData('hoverColor') ?? 0x333355
-        btn.r.setFillStyle(isSelected ? hoverColor : baseColor, 1)
-        btn.t.setColor(isSelected ? '#ffffcc' : '#ffffff')
+        const disabled = btn.r.getData('disabled') === true || !btn.r.input
+        if (disabled) {
+          btn.r.setFillStyle(baseColor, 0.6)
+          btn.t.setColor('#888888')
+        } else {
+          btn.r.setFillStyle(isSelected ? hoverColor : baseColor, 1)
+          btn.t.setColor(isSelected ? '#ffffcc' : '#ffffff')
+        }
       })
       updateFocus()
     }
@@ -465,6 +542,10 @@ export default class ShopScene extends Phaser.Scene {
     } else {
       this.selectedIndex = Phaser.Math.Clamp(this.selectedIndex, 0, this.buttons.length - 1)
     }
+    if (this.buttons.length > 0 && isButtonDisabled(this.buttons[this.selectedIndex])) {
+      const firstEnabled = this.buttons.findIndex((btn) => !isButtonDisabled(btn))
+      if (firstEnabled >= 0) this.selectedIndex = firstEnabled
+    }
     highlight()
     ensureSelectionInView()
 
@@ -474,31 +555,48 @@ export default class ShopScene extends Phaser.Scene {
     attachGamepad(this, {
       up: () => {
         if (this.buttons.length === 0) return
-        this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+        let attempts = 0
+        do {
+          this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+          attempts++
+        } while (attempts <= this.buttons.length && isButtonDisabled(this.buttons[this.selectedIndex]))
         ensureSelectionInView()
         highlight()
       },
       down: () => {
         if (this.buttons.length === 0) return
-        this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+        let attempts = 0
+        do {
+          this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+          attempts++
+        } while (attempts <= this.buttons.length && isButtonDisabled(this.buttons[this.selectedIndex]))
         ensureSelectionInView()
         highlight()
       },
       left: () => {
         if (this.buttons.length === 0) return
-        this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+        let attempts = 0
+        do {
+          this.selectedIndex = (this.selectedIndex - 1 + this.buttons.length) % this.buttons.length
+          attempts++
+        } while (attempts <= this.buttons.length && isButtonDisabled(this.buttons[this.selectedIndex]))
         ensureSelectionInView()
         highlight()
       },
       right: () => {
         if (this.buttons.length === 0) return
-        this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+        let attempts = 0
+        do {
+          this.selectedIndex = (this.selectedIndex + 1) % this.buttons.length
+          attempts++
+        } while (attempts <= this.buttons.length && isButtonDisabled(this.buttons[this.selectedIndex]))
         ensureSelectionInView()
         highlight()
       },
       confirm: () => {
         if (this.buttons.length === 0) return
         const btn = this.buttons[this.selectedIndex]
+        if (isButtonDisabled(btn)) return
         btn.onClick()
         highlight()
         ensureSelectionInView()
