@@ -559,7 +559,7 @@ export default class GameScene extends Phaser.Scene {
       // Level-scaled spin speed and fire rate (slow at low levels, faster later)
       const spinBase = 140 + 25 * (lvl - 1)
       const spinSpeed = spinBase * (hasBeamLaser ? 1.15 : 1)
-      const baseRate = 0.5 + 0.35 * (lvl - 1) // beams per second before global modifiers
+      const baseRate = 1.0 + 0.4 * (lvl - 1) // beams per second before global modifiers (buffed from 0.5)
       const rate = baseRate * (fireRate / 1.2) * (hasBeamLaser ? 1.2 : 1)
       this.laserAngle = (this.laserAngle + spinSpeed * dt) % 360
       this.laserBeamAccum += dt
@@ -572,7 +572,7 @@ export default class GameScene extends Phaser.Scene {
         const len = hasBeamLaser ? 140 : 105
         const thickness = (hasBeamLaser ? 6 : 4) + (lvl - 1) * (hasBeamLaser ? 2 : 1.5)
         this.spawnBeam(ox, oy, a, len, thickness)
-        this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 0.9 : 0.6)), thickness)
+        this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
         if (shot) {
           shot.enableBody(true, ox, oy, true, true)
@@ -582,7 +582,7 @@ export default class GameScene extends Phaser.Scene {
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
           shot.setVelocity(Math.cos(vrad) * vs, Math.sin(vrad) * vs)
-          ;(shot as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 0.6))
+          ;(shot as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.0))
           this.time.delayedCall(300, () => shot.active && shot.disableBody(true, true))
         }
       }
