@@ -15,6 +15,9 @@ interface JoypadState {
 
 export class PlayerController {
   private ctx: SceneContext
+  private readonly idleTextureKey = 'player-ship-idle-1'
+  private readonly movingTextureKey = 'player-ship-1'
+  private currentTextureKey = this.idleTextureKey
   private player?: Phaser.Physics.Arcade.Sprite
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private wasd?: Record<string, Phaser.Input.Keyboard.Key>
@@ -31,7 +34,7 @@ export class PlayerController {
   initSprite(): Phaser.Physics.Arcade.Sprite {
     const centerX = this.ctx.scale.width / 2
     const centerY = this.ctx.scale.height / 2
-    const sprite = this.ctx.physics.add.sprite(centerX, centerY, 'player-ship-1')
+    const sprite = this.ctx.physics.add.sprite(centerX, centerY, this.currentTextureKey)
     sprite.setCollideWorldBounds(false)
     sprite.setScale(0.02734375) // 28px ship
     sprite.setOrigin(0.5, 0.5)
@@ -79,7 +82,10 @@ export class PlayerController {
     this.lastMoveY = vy / len
     this.player.setVelocity(this.lastMoveX * speed, this.lastMoveY * speed)
 
-    if (Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1) {
+    const isMoving = Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1
+    this.updateTexture(isMoving)
+
+    if (isMoving) {
       const angle = Math.atan2(this.lastMoveY, this.lastMoveX) + Math.PI / 2
       this.player.setRotation(angle)
     }
@@ -87,6 +93,14 @@ export class PlayerController {
 
   getSprite() {
     return this.player
+  }
+
+  private updateTexture(isMoving: boolean) {
+    if (!this.player) return
+    const targetKey = isMoving ? this.movingTextureKey : this.idleTextureKey
+    if (this.currentTextureKey === targetKey) return
+    this.player.setTexture(targetKey)
+    this.currentTextureKey = targetKey
   }
 
   getMovementVector() {
