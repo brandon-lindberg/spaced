@@ -245,9 +245,9 @@ export class RunProgressManager {
     this.events.onStatsChanged(this.getStats())
   }
 
-  handlePickupXP(elite = false) {
+  handlePickupXP(elite = false, customValue?: number) {
     const cur = (this.scene.registry.get('xp') as number) || 0
-    const award = elite ? Math.max(1, Math.ceil(cur * 0.2)) : 1
+    const award = customValue !== undefined ? customValue : (elite ? Math.max(1, Math.ceil(cur * 0.2)) : 1)
     const next = cur + award
     this.scene.registry.set('xp', next)
     this.checkLevelProgress(next)
@@ -285,7 +285,7 @@ export class RunProgressManager {
     for (const a of inv.accessories) applyAccessoryLevel(s as any, a.key as any, a.level)
     this.fireRate = Math.min(8, s.fireRate * this.bonusFireRateMul)
     this.bulletDamage = Math.max(1, s.bulletDamage + this.bonusDamage)
-    this.multishot = Math.min(7, Math.max(1, Math.floor(s.multishot + this.bonusMultishot)))
+    this.multishot = Math.min(7, Math.max(0, Math.floor(s.multishot + this.bonusMultishot)))
     this.speedMultiplier = Math.max(0.5, Math.min(2.5, s.speedMultiplier * this.bonusSpeedMul))
     this.magnetRadius = Math.max(16, Math.min(280, s.magnetRadius + this.bonusMagnet))
     this.spreadDeg = Math.max(4, Math.min(30, s.spreadDeg ?? 10))
@@ -370,16 +370,17 @@ export class RunProgressManager {
   }
 
   applyPowerupReward(): string | null {
-    const owned: { kind: 'w' | 'a'; key: string; level: number }[] = []
-    for (const w of this.inventory.weapons) owned.push({ kind: 'w', key: w.key, level: w.level })
-    for (const a of this.inventory.accessories) owned.push({ kind: 'a', key: a.key, level: a.level })
-    if (owned.length === 0) {
-      this.addGold(25)
-      return 'Gold +25'
+    const upgradeable: { kind: 'w' | 'a'; key: string; level: number }[] = []
+    // Only include items that are not maxed out
+    for (const w of this.inventory.weapons) {
+      if (w.level < MAX_WEAPON_LEVEL) upgradeable.push({ kind: 'w', key: w.key, level: w.level })
     }
-    const pick = Phaser.Utils.Array.GetRandom(owned)
-    const isMax = pick.kind === 'w' ? pick.level >= MAX_WEAPON_LEVEL : pick.level >= MAX_ACCESSORY_LEVEL
-    if (isMax) {
+    for (const a of this.inventory.accessories) {
+      if (a.level < MAX_ACCESSORY_LEVEL) upgradeable.push({ kind: 'a', key: a.key, level: a.level })
+    }
+
+    // If no upgradeable items, give gold or heal
+    if (upgradeable.length === 0) {
       if (Math.random() < 0.5) {
         this.addGold(50)
         return 'Gold +50'
@@ -387,6 +388,8 @@ export class RunProgressManager {
       this.fullHeal()
       return 'Full Heal'
     }
+
+    const pick = Phaser.Utils.Array.GetRandom(upgradeable)
     if (pick.kind === 'w') {
       const w = this.inventory.weapons.find((x) => x.key === pick.key)
       if (w) w.level = Math.min(MAX_WEAPON_LEVEL, w.level + 1)

@@ -44,7 +44,7 @@ export interface EffectiveStats extends BaseStats {}
 export const defaultBaseStats: BaseStats = {
   fireRate: 1.2,
   bulletDamage: 1,
-  multishot: 1,
+  multishot: 0,  // Base 0, splitter adds spread projectiles
   speedMultiplier: 1,
   magnetRadius: 16,
   spreadDeg: 10,
@@ -53,8 +53,8 @@ export const defaultBaseStats: BaseStats = {
 export function applyWeaponLevel(stats: EffectiveStats, weaponKey: WeaponKey, level: number) {
   if (weaponKey === 'blaster') {
     stats.bulletDamage += Math.max(0, level - 1) // +1 per level after Lv1
-    if (level >= 3) stats.multishot += 1
-    if (level >= 5) stats.multishot += 1
+    if (level >= 3) stats.inlineExtraProjectiles += 1
+    if (level >= 5) stats.inlineExtraProjectiles += 1
     stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 10)
   }
   if (weaponKey === 'scatter-blaster') {
@@ -157,7 +157,7 @@ export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey,
       stats.bulletDamage += 1 * level
       break
     case 'splitter':
-      stats.multishot += 1 * level
+      stats.multishot += level  // Level 1: +1 spread, Level 2: +2 spread, etc.
       break
     case 'plating':
       // handled indirectly by HP elsewhere (placeholder)
@@ -187,42 +187,42 @@ export type SynergyRule = {
 export const synergyMatrix: SynergyRule[] = [
   {
     base: 'blaster',
-    requires: { weaponLevel: 3, accessories: [{ key: 'splitter', level: 1 }, { key: 'power-cell', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'splitter', level: 5 }, { key: 'power-cell', level: 5 }] },
     evolvesTo: 'scatter-blaster',
   },
   {
     base: 'blaster',
-    requires: { weaponLevel: 3, accessories: [{ key: 'ammo-loader', level: 1 }, { key: 'thrusters', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'ammo-loader', level: 5 }, { key: 'thrusters', level: 5 }] },
     evolvesTo: 'pulse-blaster',
   },
   {
     base: 'laser',
-    requires: { weaponLevel: 3, accessories: [{ key: 'magnet-core', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'magnet-core', level: 5 }] },
     evolvesTo: 'beam-laser',
   },
   {
     base: 'missiles',
-    requires: { weaponLevel: 2, accessories: [{ key: 'splitter', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'splitter', level: 5 }] },
     evolvesTo: 'cluster-missiles',
   },
   {
     base: 'orb',
-    requires: { weaponLevel: 2, accessories: [{ key: 'power-cell', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'power-cell', level: 5 }] },
     evolvesTo: 'nova-orb',
   },
   {
     base: 'railgun',
-    requires: { weaponLevel: 2, accessories: [{ key: 'targeting', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'targeting', level: 5 }] },
     evolvesTo: 'beam-arc',
   },
   {
     base: 'shotgun',
-    requires: { weaponLevel: 3, accessories: [{ key: 'splitter', level: 1 }, { key: 'autoloader', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'splitter', level: 5 }, { key: 'autoloader', level: 5 }] },
     evolvesTo: 'scatter-blaster',
   },
   {
     base: 'missiles',
-    requires: { weaponLevel: 3, accessories: [{ key: 'targeting', level: 1 }, { key: 'overclock', level: 1 }] },
+    requires: { weaponLevel: 5, accessories: [{ key: 'targeting', level: 5 }, { key: 'overclock', level: 5 }] },
     evolvesTo: 'cluster-missiles',
   },
 ]
