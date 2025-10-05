@@ -37,6 +37,7 @@ export interface BaseStats {
   speedMultiplier: number
   magnetRadius: number
   spreadDeg?: number
+  inlineExtraProjectiles?: number
 }
 
 export interface EffectiveStats extends BaseStats {}
@@ -48,13 +49,14 @@ export const defaultBaseStats: BaseStats = {
   speedMultiplier: 1,
   magnetRadius: 16,
   spreadDeg: 10,
+  inlineExtraProjectiles: 0,
 }
 
 export function applyWeaponLevel(stats: EffectiveStats, weaponKey: WeaponKey, level: number) {
   if (weaponKey === 'blaster') {
     stats.bulletDamage += Math.max(0, level - 1) // +1 per level after Lv1
-    if (level >= 3) stats.inlineExtraProjectiles += 1
-    if (level >= 5) stats.inlineExtraProjectiles += 1
+    if (level >= 3) stats.inlineExtraProjectiles = (stats.inlineExtraProjectiles ?? 0) + 1
+    if (level >= 5) stats.inlineExtraProjectiles = (stats.inlineExtraProjectiles ?? 0) + 1
     stats.spreadDeg = Math.max(stats.spreadDeg ?? 10, 10)
   }
   if (weaponKey === 'scatter-blaster') {
