@@ -79,6 +79,8 @@ export class PickupManager {
     if (customValue !== undefined) {
       xp.setData('customXP', customValue)
     }
+    // Clear any previous tint and apply new one if specified
+    xp.clearTint()
     if (customColor !== undefined) {
       xp.setTint(customColor)
     }
