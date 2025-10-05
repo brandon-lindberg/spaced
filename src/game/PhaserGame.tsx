@@ -35,6 +35,8 @@ export default function PhaserGame() {
         width: BASE_WIDTH,
         height: BASE_HEIGHT,
         expandParent: true,
+        fullscreenTarget: containerRef.current,
+        parent: containerRef.current,
       },
       render: {
         antialias: false,
