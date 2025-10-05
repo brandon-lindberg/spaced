@@ -123,7 +123,7 @@ export class BossManager {
 
     boss.enableBody(true, x, y, true, true)
     setCircleHitbox(boss, bossType === 1 ? 20 : 6)
-    ;(boss as any).hp = type === 5 ? 260 : 80
+    ;(boss as any).hp = type === 5 ? 260 : (bossType === 1 ? 800 : 80)  // 10x HP for level 1 boss
     ;(boss as any).hpMax = (boss as any).hp
     ;(boss as any).touchDamage = 2
     ;(boss as any).chase = 25
