@@ -440,11 +440,28 @@ export default class GameScene extends Phaser.Scene {
     // Missiles
     if (hasMissiles) {
       step('missiles', fireRate, () => {
-        const a = this.playerController?.getAimAngle(this.enemies) ?? 0
-        const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player!.x + Math.cos(rad) * muzzle
-        const oy = this.player!.y + Math.sin(rad) * muzzle
-        this.spawnMissile(ox, oy, a)
+        const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
+        const spread = this.stats.spreadDeg || 10
+        const fanShots = Math.max(1, Math.floor(this.stats.multishot))
+
+        // Spawn missiles in a fan spread pattern
+        if (fanShots > 1) {
+          const half = (fanShots - 1) / 2
+          for (let i = -half; i <= half; i++) {
+            const a = baseAngle + (i as number) * spread
+            const rad = Phaser.Math.DegToRad(a)
+            const ox = this.player!.x + Math.cos(rad) * muzzle
+            const oy = this.player!.y + Math.sin(rad) * muzzle
+            this.spawnMissile(ox, oy, a)
+          }
+        } else {
+          // Single missile (no spread)
+          const rad = Phaser.Math.DegToRad(baseAngle)
+          const ox = this.player!.x + Math.cos(rad) * muzzle
+          const oy = this.player!.y + Math.sin(rad) * muzzle
+          this.spawnMissile(ox, oy, baseAngle)
+        }
+
         const missilesLevel = (inv.weapons.find(w => w.key.includes('missile'))?.level) || 1
         audio.sfxShotMissile(missilesLevel)
       })
