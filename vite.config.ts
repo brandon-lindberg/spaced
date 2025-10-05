@@ -42,8 +42,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        globIgnores: ['**/audio/**'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,mp3,wav,ogg}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
         navigateFallback: '/offline.html',
         navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],

@@ -51,6 +51,10 @@ class AudioManager {
 
   startMusic(scene?: Phaser.Scene) {
     if (!this.context || !this.musicGain) return
+    // Resume context if suspended (critical for mobile browsers and PWA)
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {})
+    }
     // Prefer decoded asset 'bgm' if available
     const cacheKey = 'bgm'
     if (scene && (scene.cache as any)?.audio?.exists?.(cacheKey)) {
@@ -102,6 +106,10 @@ class AudioManager {
 
   private beep(freq: number, ms: number, type: OscillatorType = 'sine', amp = 0.4) {
     if (!this.context || !this.sfxGain) return
+    // Resume context if suspended (critical for mobile browsers)
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {})
+    }
     const osc = this.context.createOscillator()
     const gain = this.context.createGain()
     osc.type = type
