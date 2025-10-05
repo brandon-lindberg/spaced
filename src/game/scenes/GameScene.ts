@@ -116,6 +116,32 @@ export default class GameScene extends Phaser.Scene {
     super('Game')
   }
 
+  shutdown() {
+    // Cleanup physics groups to prevent issues on restart
+    this.bullets?.clear(true, true)
+    this.bullets?.destroy()
+    this.bullets = undefined as any
+
+    this.missileGroup?.clear(true, true)
+    this.missileGroup?.destroy()
+    this.missileGroup = undefined as any
+
+    this.orbGroup?.clear(true, true)
+    this.orbGroup?.destroy()
+    this.orbGroup = undefined as any
+
+    this.enemyBullets?.clear(true, true)
+    this.enemyBullets?.destroy()
+    this.enemyBullets = undefined as any
+
+    this.enemies?.clear(true, true)
+    this.enemies?.destroy()
+    this.enemies = undefined as any
+
+    // Reset weapon cooldowns
+    this.weaponCooldowns = {}
+  }
+
   create() {
     const level = runState.state?.level ?? 1
 
