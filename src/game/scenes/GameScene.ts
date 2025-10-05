@@ -145,6 +145,13 @@ export default class GameScene extends Phaser.Scene {
   create() {
     const level = runState.state?.level ?? 1
 
+    // Force recreation of all projectile groups on create to prevent retry issues
+    this.bullets = this.physics.add.group({ maxSize: 300 })
+    this.missileGroup = this.physics.add.group({ maxSize: 120 })
+    this.orbGroup = this.physics.add.group({ maxSize: 90 })
+    this.enemyBullets = this.physics.add.group({ maxSize: 300 })
+    this.weaponCooldowns = {}
+
     this.background = new BackgroundController(this, { qualityZoom: this.qualityZoom })
     this.background.init(level)
 
@@ -166,8 +173,6 @@ export default class GameScene extends Phaser.Scene {
 
     this.playerController = new PlayerController(sceneCtx)
     this.player = this.playerController.initSprite()
-
-    this.enemyBullets = this.physics.add.group({ maxSize: 300 })
     this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => {
       const bullet = b as Phaser.Physics.Arcade.Sprite
       bullet.disableBody(true, true)
@@ -190,6 +195,11 @@ export default class GameScene extends Phaser.Scene {
       if (!enemy.active) return
       this.onPlayerTouched(enemy)
     })
+
+    // Setup colliders for projectiles and enemies (must be after enemies group is created)
+    this.physics.add.overlap(this.bullets, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
+    this.physics.add.overlap(this.missileGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
+    this.physics.add.overlap(this.orbGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
 
     this.bossManager = new BossManager(this, {
       enemyGroup: this.enemies,
@@ -334,30 +344,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private ensureBulletAssets() {
-    if (!this.bullets) {
-      this.bullets = this.physics.add.group({ maxSize: 300 })
-      this.physics.add.overlap(
-        this.bullets,
-        this.enemies,
-        (_obj1, _obj2) => {
-          const b = _obj1 as Phaser.GameObjects.GameObject
-          const e = _obj2 as Phaser.GameObjects.GameObject
-          this.onBulletHit(b, e)
-        }
-      )
-    }
-    // Ensure enemy bullet group exists and colliders are set (player overlap added in create)
-    if (!this.enemyBullets) {
-      this.enemyBullets = this.physics.add.group({ maxSize: 300 })
-    }
-    if (!this.missileGroup) {
-      this.missileGroup = this.physics.add.group({ maxSize: 120 })
-      this.physics.add.overlap(this.missileGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
-    }
-    if (!this.orbGroup) {
-      this.orbGroup = this.physics.add.group({ maxSize: 90 })
-      this.physics.add.overlap(this.orbGroup, this.enemies, (_b, _e) => this.onBulletHit(_b as any, _e as any))
-    }
+    // Physics groups are now created in create() method, only ensure textures exist here
     if (!this.textures.exists(this.bulletTextureKey)) {
       const size = 2
       const gfx = this.add.graphics()
