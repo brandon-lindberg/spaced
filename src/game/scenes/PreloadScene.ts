@@ -26,6 +26,7 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.audio('bgm', 'audio/Nikkei.mp3')
     // Load player ship skin
     this.load.image('player-ship-1', 'assets/player/player_ship_1.png')
+    this.load.image('player-ship-idle-1', 'assets/player/player_ship_idle_1.png')
     // Load boss sprites
     this.load.image('boss-1', 'assets/bosses/boss_1.png')
     // Load enemy sprites
@@ -97,5 +98,4 @@ export default class PreloadScene extends Phaser.Scene {
     // start moved to loader complete
   }
 }
-
 
