@@ -49,7 +49,6 @@ export class RunProgressManager {
   private bonusSpeedMul = 1
   private bonusMagnet = 0
   private bonusLevelsUsed = 0
-  private readonly maxBonusLevels = 10
   private hpMax = 10
   private hpCur = 10
   private hurtCooldown = 0
@@ -330,10 +329,8 @@ export class RunProgressManager {
 
     const pool: LevelUpChoice[] = [
       { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
-      { key: 'firerate', label: 'Blaster +15% fire rate', color: '#88ff88' },
-      { key: 'damage', label: 'Blaster +1 damage', color: '#ff8866' },
-      { key: 'multishot', label: 'Blaster +1 projectile', color: '#ccccff' },
       { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
+      { key: 'w-blaster', label: 'Upgrade Blaster', color: '#ffffff' },
       { key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' },
       { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam', color: '#33ff99' },
       { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' },
@@ -349,28 +346,14 @@ export class RunProgressManager {
   }
 
   applyLevelUpChoice(choiceKey: string) {
-    if (this.bonusLevelsUsed >= this.maxBonusLevels && !choiceKey.startsWith('acc-') && !choiceKey.startsWith('w-') && choiceKey !== 'gold' && choiceKey !== 'hpmax') {
-      this.events.onLevelUpApplied(choiceKey)
-      return
-    }
     if (choiceKey === 'gold') {
       this.addGold(5)
-    } else if (choiceKey === 'firerate') {
-      this.bonusFireRateMul = Math.min(3, this.bonusFireRateMul * 1.15)
-      this.bonusLevelsUsed++
-    } else if (choiceKey === 'damage') {
-      this.bonusDamage = Math.min(99, this.bonusDamage + 1)
-      this.bonusLevelsUsed++
-    } else if (choiceKey === 'multishot') {
-      this.inlineExtraProjectiles = Math.min(6, this.inlineExtraProjectiles + 1)
-      this.bonusLevelsUsed++
     } else if (choiceKey === 'hpmax') {
       this.ensureHpIntegrity()
       const inc = Math.max(1, Math.floor(this.hpMax * 0.15))
       this.hpMax = Math.min(99, this.hpMax + inc)
       this.hpCur = Math.min(this.hpMax, this.hpCur + inc)
       this.syncHpToRegistry()
-      this.bonusLevelsUsed++
     } else if (choiceKey.startsWith('acc-')) {
       const cleanKey = choiceKey.replace('acc-', '')
       addAccessory(this.inventory, cleanKey)
