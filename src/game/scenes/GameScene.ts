@@ -30,7 +30,7 @@ export default class GameScene extends Phaser.Scene {
   private stats: StatsSnapshot = {
     fireRate: 0.8,
     bulletDamage: 1,
-    multishot: 1,
+    multishot: 0,
     speedMultiplier: 1,
     magnetRadius: 16,
     spreadDeg: 10,
@@ -412,54 +412,118 @@ export default class GameScene extends Phaser.Scene {
       step('blaster', fireRate, () => {
         const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
         const baseRad = Phaser.Math.DegToRad(baseAngle)
+        const spread = this.stats.spreadDeg || 10
+        const fanShots = Math.floor(this.stats.multishot)
         const inlineCount = Math.max(0, Math.floor(this.stats.inlineExtraProjectiles))
-        for (let i = 0; i <= inlineCount; i++) {
+
+        // Always fire at least 1 inline shot, plus extras from weapon levels
+        const inlineShots = inlineCount + 1  // Always at least 1, plus extras from weapon upgrades
+        for (let i = 0; i < inlineShots; i++) {
           const back = i * 8
           const speedScale = 1 - Math.min(0.6, i * 0.12)
           const ox = this.player!.x + Math.cos(baseRad) * (muzzle - back)
           const oy = this.player!.y + Math.sin(baseRad) * (muzzle - back)
           this.spawnBullet(ox, oy, baseAngle, 300 * speedScale, 'blaster')
         }
-        const blasterLevel = (inv.weapons.find(w => w.key.includes('blaster'))?.level) || 1
-        audio.sfxShotBlaster(blasterLevel)
-        const spread = this.stats.spreadDeg || 10
-        const fanShots = Math.max(1, Math.floor(this.stats.multishot))
-        if (fanShots > 1) {
-          const half = (fanShots - 1) / 2
-          for (let i = -half; i <= half; i++) {
-            if (i === 0) continue
-            const a = baseAngle + (i as number) * spread
+
+        // Fire additional spread projectiles from splitter accessory
+        if (fanShots > 0) {
+          // Spread projectiles are offset from center
+          if (fanShots === 1) {
+            // Single spread shot - offset to one side
+            const a = baseAngle + spread
             const rad = Phaser.Math.DegToRad(a)
             const ox = this.player!.x + Math.cos(rad) * muzzle
             const oy = this.player!.y + Math.sin(rad) * muzzle
             this.spawnBullet(ox, oy, a, undefined, 'blaster')
+          } else {
+            // Multiple spread shots - distribute symmetrically, skipping center
+            const numPairs = Math.floor(fanShots / 2)
+
+            for (let i = 1; i <= numPairs; i++) {
+              // Left shot
+              const aLeft = baseAngle - i * spread
+              const radLeft = Phaser.Math.DegToRad(aLeft)
+              const oxLeft = this.player!.x + Math.cos(radLeft) * muzzle
+              const oyLeft = this.player!.y + Math.sin(radLeft) * muzzle
+              this.spawnBullet(oxLeft, oyLeft, aLeft, undefined, 'blaster')
+
+              // Right shot
+              const aRight = baseAngle + i * spread
+              const radRight = Phaser.Math.DegToRad(aRight)
+              const oxRight = this.player!.x + Math.cos(radRight) * muzzle
+              const oyRight = this.player!.y + Math.sin(radRight) * muzzle
+              this.spawnBullet(oxRight, oyRight, aRight, undefined, 'blaster')
+            }
+
+            // If odd number, add one more shot offset to one side
+            if (fanShots % 2 === 1) {
+              const extraOffset = (numPairs + 1) * spread
+              const aExtra = baseAngle + extraOffset
+              const radExtra = Phaser.Math.DegToRad(aExtra)
+              const oxExtra = this.player!.x + Math.cos(radExtra) * muzzle
+              const oyExtra = this.player!.y + Math.sin(radExtra) * muzzle
+              this.spawnBullet(oxExtra, oyExtra, aExtra, undefined, 'blaster')
+            }
           }
         }
+
+        const blasterLevel = (inv.weapons.find(w => w.key.includes('blaster'))?.level) || 1
+        audio.sfxShotBlaster(blasterLevel)
       })
     }
     // Missiles
     if (hasMissiles) {
       step('missiles', fireRate, () => {
         const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
+        const baseRad = Phaser.Math.DegToRad(baseAngle)
         const spread = this.stats.spreadDeg || 10
-        const fanShots = Math.max(1, Math.floor(this.stats.multishot))
+        const fanShots = Math.floor(this.stats.multishot)
 
-        // Spawn missiles in a fan spread pattern
-        if (fanShots > 1) {
-          const half = (fanShots - 1) / 2
-          for (let i = -half; i <= half; i++) {
-            const a = baseAngle + (i as number) * spread
+        // Always fire 1 inline missile
+        const ox = this.player!.x + Math.cos(baseRad) * muzzle
+        const oy = this.player!.y + Math.sin(baseRad) * muzzle
+        this.spawnMissile(ox, oy, baseAngle)
+
+        // Fire additional spread missiles from splitter accessory
+        if (fanShots > 0) {
+          if (fanShots === 1) {
+            // Single spread missile - offset to one side
+            const a = baseAngle + spread
             const rad = Phaser.Math.DegToRad(a)
             const ox = this.player!.x + Math.cos(rad) * muzzle
             const oy = this.player!.y + Math.sin(rad) * muzzle
             this.spawnMissile(ox, oy, a)
+          } else {
+            // Multiple spread missiles - distribute symmetrically, skipping center
+            const numPairs = Math.floor(fanShots / 2)
+
+            for (let i = 1; i <= numPairs; i++) {
+              // Left missile
+              const aLeft = baseAngle - i * spread
+              const radLeft = Phaser.Math.DegToRad(aLeft)
+              const oxLeft = this.player!.x + Math.cos(radLeft) * muzzle
+              const oyLeft = this.player!.y + Math.sin(radLeft) * muzzle
+              this.spawnMissile(oxLeft, oyLeft, aLeft)
+
+              // Right missile
+              const aRight = baseAngle + i * spread
+              const radRight = Phaser.Math.DegToRad(aRight)
+              const oxRight = this.player!.x + Math.cos(radRight) * muzzle
+              const oyRight = this.player!.y + Math.sin(radRight) * muzzle
+              this.spawnMissile(oxRight, oyRight, aRight)
+            }
+
+            // If odd number, add one more missile offset to one side
+            if (fanShots % 2 === 1) {
+              const extraOffset = (numPairs + 1) * spread
+              const aExtra = baseAngle + extraOffset
+              const radExtra = Phaser.Math.DegToRad(aExtra)
+              const oxExtra = this.player!.x + Math.cos(radExtra) * muzzle
+              const oyExtra = this.player!.y + Math.sin(radExtra) * muzzle
+              this.spawnMissile(oxExtra, oyExtra, aExtra)
+            }
           }
-        } else {
-          // Single missile (no spread)
-          const rad = Phaser.Math.DegToRad(baseAngle)
-          const ox = this.player!.x + Math.cos(rad) * muzzle
-          const oy = this.player!.y + Math.sin(rad) * muzzle
-          this.spawnMissile(ox, oy, baseAngle)
         }
 
         const missilesLevel = (inv.weapons.find(w => w.key.includes('missile'))?.level) || 1
@@ -561,7 +625,7 @@ export default class GameScene extends Phaser.Scene {
   private spawnBullet(x: number, y: number, angleDeg: number, speedOverride?: number, weaponType?: string) {
     const tex = 'blaster-tex'
     this.ensureBulletAssets()
-    if (!this.bullets) {
+    if (!this.bullets || !this.bullets.scene) {
       return
     }
     let b = this.bullets.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
@@ -606,7 +670,7 @@ export default class GameScene extends Phaser.Scene {
 
   private spawnMissile(x: number, y: number, angleDeg: number) {
     this.ensureBulletAssets()
-    if (!this.missileGroup) {
+    if (!this.missileGroup || !this.missileGroup.scene) {
       return
     }
     let m = this.missileGroup.get(x, y, 'missile-tex') as Phaser.Physics.Arcade.Sprite
@@ -653,7 +717,7 @@ export default class GameScene extends Phaser.Scene {
 
   private spawnOrb(x: number, y: number, angleDeg: number) {
     this.ensureBulletAssets()
-    if (!this.orbGroup) {
+    if (!this.orbGroup || !this.orbGroup.scene) {
       return
     }
     let o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite

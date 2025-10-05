@@ -44,7 +44,7 @@ export interface EffectiveStats extends BaseStats {}
 export const defaultBaseStats: BaseStats = {
   fireRate: 1.2,
   bulletDamage: 1,
-  multishot: 1,
+  multishot: 0,  // Base 0, splitter adds spread projectiles
   speedMultiplier: 1,
   magnetRadius: 16,
   spreadDeg: 10,
@@ -157,7 +157,7 @@ export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey,
       stats.bulletDamage += 1 * level
       break
     case 'splitter':
-      stats.multishot += 1 * level  // +1 projectile per level for spread pattern
+      stats.multishot += level  // Level 1: +1 spread, Level 2: +2 spread, etc.
       break
     case 'plating':
       // handled indirectly by HP elsewhere (placeholder)

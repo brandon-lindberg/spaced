@@ -285,7 +285,7 @@ export class RunProgressManager {
     for (const a of inv.accessories) applyAccessoryLevel(s as any, a.key as any, a.level)
     this.fireRate = Math.min(8, s.fireRate * this.bonusFireRateMul)
     this.bulletDamage = Math.max(1, s.bulletDamage + this.bonusDamage)
-    this.multishot = Math.min(7, Math.max(1, Math.floor(s.multishot + this.bonusMultishot)))
+    this.multishot = Math.min(7, Math.max(0, Math.floor(s.multishot + this.bonusMultishot)))
     this.speedMultiplier = Math.max(0.5, Math.min(2.5, s.speedMultiplier * this.bonusSpeedMul))
     this.magnetRadius = Math.max(16, Math.min(280, s.magnetRadius + this.bonusMagnet))
     this.spreadDeg = Math.max(4, Math.min(30, s.spreadDeg ?? 10))
