@@ -245,9 +245,9 @@ export class RunProgressManager {
     this.events.onStatsChanged(this.getStats())
   }
 
-  handlePickupXP(elite = false) {
+  handlePickupXP(elite = false, customValue?: number) {
     const cur = (this.scene.registry.get('xp') as number) || 0
-    const award = elite ? Math.max(1, Math.ceil(cur * 0.2)) : 1
+    const award = customValue !== undefined ? customValue : (elite ? Math.max(1, Math.ceil(cur * 0.2)) : 1)
     const next = cur + award
     this.scene.registry.set('xp', next)
     this.checkLevelProgress(next)

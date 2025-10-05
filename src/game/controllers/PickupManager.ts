@@ -42,9 +42,10 @@ export class PickupManager {
       const textureKey = sprite.texture?.key
       const isXp = textureKey?.startsWith('xp-gem') || kind === 'xp' || kind === 'xp-elite'
       if (!isXp) return
+      const customXP = sprite.getData('customXP') as number | undefined
       sprite.destroy()
       const elite = textureKey === 'xp-gem-elite' || kind === 'xp-elite'
-      this.deps.progress.handlePickupXP(elite)
+      this.deps.progress.handlePickupXP(elite, customXP)
     })
 
     this.scene.physics.add.overlap(player, this.goldGroup, (_p, pickup) => {
@@ -69,12 +70,18 @@ export class PickupManager {
     })
   }
 
-  spawnXP(x: number, y: number, elite = false) {
+  spawnXP(x: number, y: number, elite = false, customValue?: number, customColor?: number) {
     const key = elite ? 'xp-gem-elite' : 'xp-gem'
     const xp = this.xpGroup.create(x, y, key) as Phaser.Physics.Arcade.Sprite
     if (!xp) return
     xp.setActive(true).setVisible(true)
     xp.setData('kind', elite ? 'xp-elite' : 'xp')
+    if (customValue !== undefined) {
+      xp.setData('customXP', customValue)
+    }
+    if (customColor !== undefined) {
+      xp.setTint(customColor)
+    }
     if (elite) {
       this.scene.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
     }

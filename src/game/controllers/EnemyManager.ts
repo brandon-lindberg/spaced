@@ -113,7 +113,7 @@ export class EnemyManager {
       ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
     } else if (type === 'tank') {
-      ;(enemy as any).hp = Math.round(70 * hpScale)  // 10x tank HP
+      ;(enemy as any).hp = Math.round(35 * hpScale)  // 5x tank HP (50% reduction)
       ;(enemy as any).chase = 24
       ;(enemy as any).touchDamage = touch + 1
     } else {
@@ -176,6 +176,7 @@ export class EnemyManager {
   private handleEnemyDeath(enemy: Phaser.Physics.Arcade.Sprite) {
     const isBoss = !!(enemy as any).isBoss
     const isElite = !!((enemy as any).elite || (enemy as any).isElite)
+    const isTank = enemy.texture?.key === 'enemy-tank'
     enemy.disableBody(true, true)
     if (isBoss) return
     if (isElite) {
@@ -189,6 +190,10 @@ export class EnemyManager {
       } else {
         this.config.pickupManager.spawnGoldBurst(enemy.x, enemy.y, 5)
       }
+    } else if (isTank) {
+      // Tank enemies drop 20 XP orange gems
+      if (Math.random() < 0.8) this.config.pickupManager.spawnXP(enemy.x, enemy.y, false, 20, 0xff9933)
+      if (Math.random() < 0.3) this.config.pickupManager.spawnGold(enemy.x, enemy.y)
     } else {
       if (Math.random() < 0.8) this.config.pickupManager.spawnXP(enemy.x, enemy.y)
       if (Math.random() < 0.3) this.config.pickupManager.spawnGold(enemy.x, enemy.y)
