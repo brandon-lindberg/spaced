@@ -113,7 +113,7 @@ export class EnemyManager {
       ;(enemy as any).chase = 64
       ;(enemy as any).touchDamage = touch
     } else if (type === 'tank') {
-      ;(enemy as any).hp = Math.round(7 * hpScale)
+      ;(enemy as any).hp = Math.round(70 * hpScale)  // 10x tank HP
       ;(enemy as any).chase = 24
       ;(enemy as any).touchDamage = touch + 1
     } else {

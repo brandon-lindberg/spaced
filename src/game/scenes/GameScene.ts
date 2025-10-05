@@ -472,19 +472,18 @@ export default class GameScene extends Phaser.Scene {
     const arrO = this.safeGroupChildren(this.orbGroup) as Phaser.Physics.Arcade.Sprite[]
     for (const b of [...arrB, ...arrM, ...arrO]) {
       if (!b.active) continue
-      // simple homing for missiles
+      // Homing for missiles - lock onto initial target, explode if target destroyed
       if ((b as any).missile) {
-        let nearest: Phaser.Physics.Arcade.Sprite | null = null
-        let best = Infinity
-        const enemies = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
-        for (const e of enemies) {
-          if (!e || !e.active) continue
-          const dx = e.x - b.x, dy = e.y - b.y
-          const d2 = dx * dx + dy * dy
-          if (d2 < best) { best = d2; nearest = e }
+        const target = (b as any).missileTarget
+        // If target is destroyed or inactive, explode the missile
+        if (target && (!target.active || target.body === null)) {
+          this.showExplosion(b.x, b.y, 20)
+          b.disableBody(true, true)
+          continue
         }
-        if (nearest) {
-          const dx = nearest.x - b.x, dy = nearest.y - b.y
+        // Home in on locked target
+        if (target && target.active) {
+          const dx = target.x - b.x, dy = target.y - b.y
           const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || 140
           const ang = Math.atan2(dy, dx)
           b.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp)
@@ -610,6 +609,18 @@ export default class GameScene extends Phaser.Scene {
     ;(m as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.5))
     ;(m as any).missile = true
     ;(m as any).weaponType = 'missile'
+
+    // Lock onto nearest enemy at spawn time
+    let nearest: Phaser.Physics.Arcade.Sprite | null = null
+    let best = Infinity
+    const enemies = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    for (const e of enemies) {
+      if (!e || !e.active) continue
+      const dx = e.x - x, dy = e.y - y
+      const d2 = dx * dx + dy * dy
+      if (d2 < best) { best = d2; nearest = e }
+    }
+    ;(m as any).missileTarget = nearest  // Lock onto this target permanently
 
     // Cancel any existing timer from previous use
     if ((m as any).disableTimer) {
