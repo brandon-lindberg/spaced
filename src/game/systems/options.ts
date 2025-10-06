@@ -4,6 +4,7 @@ export type Options = {
   screenShake: boolean
   showFPS: boolean
   showTouchJoystick: boolean
+  crtFilter: boolean
   musicVolume: number
   sfxVolume: number
   gamepad?: {
@@ -25,6 +26,7 @@ const defaultOptions: Options = {
   screenShake: true,
   showFPS: false,
   showTouchJoystick: true,
+  crtFilter: false,
   musicVolume: 0.5,
   sfxVolume: 0.7,
   gamepad: { confirm: 0, cancel: 1, pauseStart: 9, pauseSelect: 8, pause: 9, up: 12, down: 13, left: 14, right: 15, invertX: false, invertY: false },

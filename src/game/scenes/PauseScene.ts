@@ -12,7 +12,7 @@ export default class PauseScene extends Phaser.Scene {
     this.game.events.emit('pause-opened')
     const { width, height } = this.scale
     // Panel
-    const panel = this.add.rectangle(width/2, height/2, 220, 140, 0x0b0e20, 0.9).setOrigin(0.5)
+    const panel = this.add.rectangle(width/2, height/2, 220, 165, 0x0b0e20, 0.9).setOrigin(0.5)
     panel.setStrokeStyle(1, 0x3355ff, 1)
     const text = this.add.text(width / 2, height / 2 - 40, 'Paused', {
       fontFamily: 'monospace',
@@ -32,9 +32,10 @@ export default class PauseScene extends Phaser.Scene {
       t.on('pointerdown', toggle)
       return { node: t, toggle }
     }
-    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -24)
-    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 0)
-    const vol = this.add.text(width / 2, height / 2 + 28, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -36)
+    const wCrt = mkToggle('CRT Filter', () => getOptions().crtFilter, (b) => setOptions({ crtFilter: b }), -12)
+    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 12)
+    const vol = this.add.text(width / 2, height / 2 + 40, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
     vol.setInteractive({ useHandCursor: true })
     const incVol = () => {
       const o = getOptions()
@@ -49,11 +50,11 @@ export default class PauseScene extends Phaser.Scene {
       setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
     }
     vol.on('pointerdown', incVol)
-    const volDown = this.add.text(width / 2, height / 2 + 56, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
+    const volDown = this.add.text(width / 2, height / 2 + 68, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
     volDown.setInteractive({ useHandCursor: true })
     volDown.on('pointerdown', decVol)
 
-    const widgets = [wShake.node, wFps.node, vol, volDown]
+    const widgets = [wShake.node, wCrt.node, wFps.node, vol, volDown]
     let sel = 0
     const highlight = () => {
       widgets.forEach((w, i) => w.setStyle({ backgroundColor: i === sel ? '#3355ff' : '#111144', color: i === sel ? '#ffffcc' : '#ffffff' }))
@@ -80,6 +81,7 @@ export default class PauseScene extends Phaser.Scene {
       right: () => { if (widgets[sel] === vol || widgets[sel] === volDown) incVol() },
       confirm: () => {
         if (widgets[sel] === wShake.node) wShake.toggle()
+        else if (widgets[sel] === wCrt.node) wCrt.toggle()
         else if (widgets[sel] === wFps.node) wFps.toggle()
         else if (widgets[sel] === vol) incVol()
         else if (widgets[sel] === volDown) decVol()
