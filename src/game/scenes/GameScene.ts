@@ -11,6 +11,7 @@ import { RunProgressManager, type LevelUpChoice, type StatsSnapshot } from '../c
 import { EnemyManager, type SpawnContext } from '../controllers/EnemyManager'
 import { BossManager } from '../controllers/BossManager'
 import { ObstacleManager } from '../controllers/ObstacleManager'
+import { CRTPostFX } from '../shaders/CRTShader'
 
 export default class GameScene extends Phaser.Scene {
   private player?: Phaser.Physics.Arcade.Sprite
@@ -86,6 +87,26 @@ export default class GameScene extends Phaser.Scene {
   private handleStatsChanged(stats: StatsSnapshot) {
     this.stats = { ...stats }
     this.hurtCooldown = stats.hurtCooldown
+  }
+
+  private handleOptionsUpdated = () => {
+    const options = getOptions()
+    const cam = this.cameras.main
+
+    if (options.crtFilter) {
+      // Add CRT pipeline if not already present
+      const hasCRT = cam.postPipelines.some((p) => p instanceof CRTPostFX)
+      if (!hasCRT) {
+        const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer
+        if (!renderer.pipelines.has('CRTPostFX')) {
+          renderer.pipelines.addPostPipeline('CRTPostFX', CRTPostFX)
+        }
+        cam.setPostPipeline(CRTPostFX)
+      }
+    } else {
+      // Remove CRT pipeline
+      cam.resetPostPipeline(true)
+    }
   }
 
   // Basic weapon: Blaster
@@ -236,10 +257,16 @@ export default class GameScene extends Phaser.Scene {
     this.scale.on('resize', this.handleResize, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleResize, this)
+      this.game.events.off('options-updated', this.handleOptionsUpdated, this)
     })
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       this.scale.off('resize', this.handleResize, this)
+      this.game.events.off('options-updated', this.handleOptionsUpdated, this)
     })
+
+    // Set up CRT filter option listener
+    this.handleOptionsUpdated()
+    this.game.events.on('options-updated', this.handleOptionsUpdated, this)
 
     this.input.enabled = true
     if (this.input.keyboard) this.input.keyboard.enabled = true
