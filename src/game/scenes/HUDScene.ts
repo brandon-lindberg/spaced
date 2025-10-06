@@ -78,7 +78,7 @@ export default class HUDScene extends Phaser.Scene {
         if (/Orb/i.test(name)) key = 'icon-weapon-orb'
         if (this.textures.exists(key)) {
           const img = this.add.image(x + 6, y + 6, key).setOrigin(0.5).setScrollFactor(0)
-          img.setDisplaySize(12, 12)
+          img.setDisplaySize(16, 16)
           iconLayer.add(img)
         }
         // pips under icon
@@ -97,7 +97,7 @@ export default class HUDScene extends Phaser.Scene {
           const lvl = match ? parseInt(match[2], 10) : 1
           if (this.textures.exists('icon-acc')) {
             const img = this.add.image(x + 6, y + 6, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
-            img.setDisplaySize(12, 12)
+            img.setDisplaySize(16, 16)
             iconLayer.add(img)
           }
           for (let i = 0; i < Math.min(6, lvl); i++) {
