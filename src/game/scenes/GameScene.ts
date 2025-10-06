@@ -581,6 +581,8 @@ export default class GameScene extends Phaser.Scene {
           const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || 140
           const ang = Math.atan2(dy, dx)
           b.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp)
+          // Update rotation to face new direction
+          b.setRotation(ang + Math.PI / 2)
         }
       }
       if (!Phaser.Geom.Rectangle.Contains(bounds, b.x, b.y)) {
@@ -636,7 +638,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnBullet(x: number, y: number, angleDeg: number, speedOverride?: number, weaponType?: string) {
-    const tex = 'blaster-tex'
+    const tex = this.textures.exists('blaster-projectile') ? 'blaster-projectile' : 'blaster-tex'
     this.ensureBulletAssets()
     if (!this.bullets || !this.bullets.scene) {
       return
@@ -650,10 +652,39 @@ export default class GameScene extends Phaser.Scene {
     }
     b.setTexture(tex)  // Ensure correct texture when reusing pooled sprites
     b.setActive(true).setVisible(true)
-    b.enableBody(true, x, y, true, true)
     b.setDepth(5)
-    b.body?.setSize(2, 2, true)
-    b.setCircle(1, 0, 0)
+    // Set display size and origin FIRST
+    if (tex === 'blaster-projectile') {
+      b.setDisplaySize(16, 16)
+      b.setOrigin(0.5, 0.5)  // Ensure centered origin
+    } else {
+      b.setOrigin(0.5, 0.5)
+    }
+    b.enableBody(true, x, y, true, true)
+    // MUST reset body configuration every time since pooled sprites reuse bodies
+    if (!b.body) {
+      console.error('No physics body on bullet!')
+      return
+    }
+    if (tex === 'blaster-projectile') {
+      // Body size is affected by sprite scale, so we need to compensate
+      // Texture is 1024x1024 scaled to 16x16 = scale of 0.015625
+      // To get a 12px body, we need: 12 / scaleX = actual size to set
+      const scaleX = b.scaleX || 1
+      const scaleY = b.scaleY || 1
+      const desiredBodySize = 12
+      const actualBodyWidth = desiredBodySize / scaleX
+      const actualBodyHeight = desiredBodySize / scaleY
+      const actualOffsetX = 2 / scaleX
+      const actualOffsetY = 2 / scaleY
+
+      b.body.setSize(actualBodyWidth, actualBodyHeight)
+      b.body.setOffset(actualOffsetX, actualOffsetY)
+    } else {
+      b.body.setCircle(1, 0, 0)
+    }
+    // Ensure body is enabled for collision detection
+    b.body.enable = true
     // Reset any reused flags from enemy bullets or other projectile types
     ;(b as any).enemyBullet = false
     delete (b as any).missile
@@ -661,6 +692,8 @@ export default class GameScene extends Phaser.Scene {
     const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    // Rotate sprite to face direction (top of sprite = front)
+    b.setRotation(rad + Math.PI / 2)  // +90 degrees because sprite's top faces up by default
     ;(b as any).damage = this.stats.bulletDamage
     ;(b as any).weaponType = weaponType || 'unknown'
 
@@ -686,20 +719,30 @@ export default class GameScene extends Phaser.Scene {
     if (!this.missileGroup || !this.missileGroup.scene) {
       return
     }
-    let m = this.missileGroup.get(x, y, 'missile-tex') as Phaser.Physics.Arcade.Sprite
+    const tex = this.textures.exists('missile-projectile') ? 'missile-projectile' : 'missile-tex'
+    let m = this.missileGroup.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
     if (!m) {
-      m = this.missileGroup.create(x, y, 'missile-tex') as Phaser.Physics.Arcade.Sprite
+      m = this.missileGroup.create(x, y, tex) as Phaser.Physics.Arcade.Sprite
       if (!m) return
     }
-    m.setTexture('missile-tex')  // Ensure correct texture
+    m.setTexture(tex)  // Ensure correct texture
     m.setActive(true).setVisible(true)
     m.enableBody(true, x, y, true, true)
     m.setDepth(5)
-    m.body?.setSize(5, 5, true)
-    m.setCircle(3, 0, 0)
+    // Set display size for new sprite, keep collision box reasonable
+    if (tex === 'missile-projectile') {
+      m.setDisplaySize(12, 12)
+      m.body?.setSize(6, 6, true)
+      m.setCircle(3, 3, 3)
+    } else {
+      m.body?.setSize(5, 5, true)
+      m.setCircle(3, 0, 0)
+    }
     const speed = 160
     const rad = Phaser.Math.DegToRad(angleDeg)
     m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    // Rotate sprite to face direction (top of sprite = front)
+    m.setRotation(rad + Math.PI / 2)
     ;(m as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.5))
     ;(m as any).missile = true
     ;(m as any).weaponType = 'missile'
@@ -733,19 +776,27 @@ export default class GameScene extends Phaser.Scene {
     if (!this.orbGroup || !this.orbGroup.scene) {
       return
     }
-    let o = this.orbGroup.get(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
+    const tex = this.textures.exists('orb-projectile') ? 'orb-projectile' : 'orb-tex'
+    let o = this.orbGroup.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
     if (!o) {
-      o = this.orbGroup.create(x, y, 'orb-tex') as Phaser.Physics.Arcade.Sprite
+      o = this.orbGroup.create(x, y, tex) as Phaser.Physics.Arcade.Sprite
       if (!o) {
         return
       }
     }
-    o.setTexture('orb-tex')  // Ensure correct texture
+    o.setTexture(tex)  // Ensure correct texture
     o.setActive(true).setVisible(true)
     o.enableBody(true, x, y, true, true)
     o.setDepth(5)
-    o.body?.setSize(8, 8, true)
-    o.setCircle(4, 0, 0)
+    // Set display size for new sprite, keep collision box reasonable
+    if (tex === 'orb-projectile') {
+      o.setDisplaySize(16, 16)
+      o.body?.setSize(10, 10, true)
+      o.setCircle(5, 3, 3)
+    } else {
+      o.body?.setSize(8, 8, true)
+      o.setCircle(4, 0, 0)
+    }
     const speed = 110
     const rad = Phaser.Math.DegToRad(angleDeg)
     o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
@@ -754,7 +805,7 @@ export default class GameScene extends Phaser.Scene {
     ;(o as any).exploded = false
     ;(o as any).bornUntil = this.time.now + 120
     ;(o as any).weaponType = 'orb'
-    
+
   }
 
   private explodeOrb(o: Phaser.Physics.Arcade.Sprite) {
