@@ -652,17 +652,39 @@ export default class GameScene extends Phaser.Scene {
     }
     b.setTexture(tex)  // Ensure correct texture when reusing pooled sprites
     b.setActive(true).setVisible(true)
-    b.enableBody(true, x, y, true, true)
     b.setDepth(5)
-    // Set display size for new sprite (8x8px), keep collision box small
+    // Set display size and origin FIRST
     if (tex === 'blaster-projectile') {
-      b.setDisplaySize(8, 8)
-      b.body?.setSize(4, 4, true)
-      b.setCircle(2, 2, 2)
+      b.setDisplaySize(16, 16)
+      b.setOrigin(0.5, 0.5)  // Ensure centered origin
     } else {
-      b.body?.setSize(2, 2, true)
-      b.setCircle(1, 0, 0)
+      b.setOrigin(0.5, 0.5)
     }
+    b.enableBody(true, x, y, true, true)
+    // MUST reset body configuration every time since pooled sprites reuse bodies
+    if (!b.body) {
+      console.error('No physics body on bullet!')
+      return
+    }
+    if (tex === 'blaster-projectile') {
+      // Body size is affected by sprite scale, so we need to compensate
+      // Texture is 1024x1024 scaled to 16x16 = scale of 0.015625
+      // To get a 12px body, we need: 12 / scaleX = actual size to set
+      const scaleX = b.scaleX || 1
+      const scaleY = b.scaleY || 1
+      const desiredBodySize = 12
+      const actualBodyWidth = desiredBodySize / scaleX
+      const actualBodyHeight = desiredBodySize / scaleY
+      const actualOffsetX = 2 / scaleX
+      const actualOffsetY = 2 / scaleY
+
+      b.body.setSize(actualBodyWidth, actualBodyHeight)
+      b.body.setOffset(actualOffsetX, actualOffsetY)
+    } else {
+      b.body.setCircle(1, 0, 0)
+    }
+    // Ensure body is enabled for collision detection
+    b.body.enable = true
     // Reset any reused flags from enemy bullets or other projectile types
     ;(b as any).enemyBullet = false
     delete (b as any).missile
