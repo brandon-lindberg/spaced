@@ -571,7 +571,7 @@ export default class GameScene extends Phaser.Scene {
         const target = (b as any).missileTarget
         // If target is destroyed or inactive, explode the missile
         if (target && (!target.active || target.body === null)) {
-          this.showExplosion(b.x, b.y, 20)
+          this.showExplosion(b.x, b.y, 20, false)
           b.disableBody(true, true)
           continue
         }
@@ -762,16 +762,18 @@ export default class GameScene extends Phaser.Scene {
     ;(o as any).exploded = true
     const radius = 28
     const cx = o.x, cy = o.y
-    this.showExplosion(cx, cy, radius)
     const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+    let hitAnyEnemy = false
     for (const e of children) {
       if (!e || !e.active) continue
       const dx = e.x - cx, dy = e.y - cy
       if (dx * dx + dy * dy <= radius * radius) {
+        hitAnyEnemy = true
         this.showHitSpark(e.x, e.y)
         this.enemyManager?.applyDamage(e, Math.max(1, Math.floor(this.stats.bulletDamage * 1.2)))
       }
     }
+    this.showExplosion(cx, cy, radius, hitAnyEnemy)
     o.disableBody(true, true)
   }
 
@@ -822,11 +824,40 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private showExplosion(x: number, y: number, radius: number) {
-    const ex = this.add.image(x, y, 'explosion-tex').setDepth(850)
-    const scale = Math.max(0.5, radius / 16)
-    ex.setScale(scale)
-    this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
+  private showExplosion(x: number, y: number, radius: number, hitEnemy: boolean = false) {
+    // Use new explosion sprites for missiles/orbs
+    if (this.textures.exists('explosion-small') && this.textures.exists('explosion-medium')) {
+      if (hitEnemy) {
+        // Enemy hit: animate from small to medium
+        const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
+        ex.setDisplaySize(32, 32)
+        this.tweens.add({
+          targets: ex,
+          alpha: 0,
+          duration: 220,
+          onUpdate: (tween) => {
+            const progress = tween.progress
+            if (progress > 0.3 && ex.texture.key === 'explosion-small') {
+              ex.setTexture('explosion-medium')
+            }
+            const size = 32 + (32 * progress) // 32px to 64px
+            ex.setDisplaySize(size, size)
+          },
+          onComplete: () => ex.destroy()
+        })
+      } else {
+        // Regular explosion: just show small
+        const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
+        ex.setDisplaySize(32, 32)
+        this.tweens.add({ targets: ex, alpha: 0, duration: 220, onComplete: () => ex.destroy() })
+      }
+    } else {
+      // Fallback to old explosion
+      const ex = this.add.image(x, y, 'explosion-tex').setDepth(850)
+      const scale = Math.max(0.5, radius / 16)
+      ex.setScale(scale)
+      this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
+    }
     // Explosion SFX
     audio.sfxExplosion()
   }
@@ -860,7 +891,7 @@ export default class GameScene extends Phaser.Scene {
     this.showHitSpark(e.x, e.y)
     b.disableBody(true, true)
     if ((b as any).missile) {
-      this.showExplosion(e.x, e.y, 20)
+      this.showExplosion(e.x, e.y, 20, true)
     }
     this.enemyManager?.applyDamage(e, damage)
   }
