@@ -51,10 +51,14 @@ export default class PreloadScene extends Phaser.Scene {
     makeIcon('icon-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(5,5,4)}, 10,10)
     makeIcon('icon-xp', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(5,0,10,5,0,5); g.fillTriangle(0,5,10,5,5,10)}, 10,10)
     makeIcon('icon-timer', (g)=>{ g.lineStyle(2,0xffffff,1); g.strokeCircle(5,5,4); g.lineBetween(5,5,5,2); g.lineBetween(5,5,8,5)}, 10,10)
-    makeRect('icon-weapon',10,10,0x4444aa)
-    makeRect('icon-weapon-laser',10,10,0xaa44aa)
-    makeRect('icon-weapon-missiles',10,10,0xffaa33)
-    makeRect('icon-weapon-orb',10,10,0x66ccff)
+    // Load weapon icons
+    this.load.image('icon-weapon', 'assets/icons/blaster_icon.png')
+    this.load.image('icon-weapon-laser', 'assets/icons/laser_icon_one.png')
+    this.load.image('icon-weapon-missiles', 'assets/icons/missile_icon.png')
+    this.load.image('icon-weapon-orb', 'assets/icons/orb_icon.png')
+    // Load explosion sprites
+    this.load.image('explosion-small', 'assets/effects/explosions/explosion_small.png')
+    this.load.image('explosion-medium', 'assets/effects/explosions/explosion_medium.png')
     makeRect('icon-acc',10,10,0x226644)
     // Game sprites
     makeRect('blaster-tex',3,3,0xffffff)
