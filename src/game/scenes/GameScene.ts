@@ -1067,17 +1067,110 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemyBullet(x: number, y: number, angleDeg: number) {
-    const b = this.enemyBullets.get(x, y, this.bulletTextureKey) as Phaser.Physics.Arcade.Sprite
-    if (!b) return
-    b.enableBody(true, x, y, true, true)
+    const tex = this.textures.exists('enemy-projectile') ? 'enemy-projectile' : this.bulletTextureKey
+    let b = this.enemyBullets.get(x, y, tex) as Phaser.Physics.Arcade.Sprite
+    if (!b) {
+      b = this.enemyBullets.create(x, y, tex) as Phaser.Physics.Arcade.Sprite
+      if (!b) return
+    }
+    b.setTexture(tex)  // Ensure correct texture when reusing pooled sprites
+    b.setActive(true).setVisible(true)
     b.setDepth(4)
-    b.body?.setSize(2, 2, true)
-    b.setCircle(1, 0, 0)
+    // Set display size and origin FIRST
+    if (tex === 'enemy-projectile') {
+      b.setDisplaySize(14, 14)
+      b.setOrigin(0.5, 0.5)
+    } else {
+      b.setOrigin(0.5, 0.5)
+    }
+    b.enableBody(true, x, y, true, true)
+    // MUST reset body configuration every time since pooled sprites reuse bodies
+    if (!b.body) {
+      console.error('No physics body on enemy bullet!')
+      return
+    }
+    // Set collision body
+    if (tex === 'enemy-projectile') {
+      const scaleX = b.scaleX || 1
+      const scaleY = b.scaleY || 1
+      const desiredBodySize = 10
+      const actualBodyWidth = desiredBodySize / scaleX
+      const actualBodyHeight = desiredBodySize / scaleY
+      const actualOffsetX = 2 / scaleX
+      const actualOffsetY = 2 / scaleY
+      b.body.setSize(actualBodyWidth, actualBodyHeight)
+      b.body.setOffset(actualOffsetX, actualOffsetY)
+    } else {
+      b.body.setSize(2, 2, true)
+      b.setCircle(1, 0, 0)
+    }
+    // Ensure body is enabled for collision detection
+    b.body.enable = true
     const speed = 120
     const rad = Phaser.Math.DegToRad(angleDeg)
     b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    // Rotate sprite so left side (front) faces direction of movement
+    b.setRotation(rad + Math.PI)
     ;(b as any).damage = 1
-    this.time.delayedCall(3000, () => b.active && b.disableBody(true, true))
+
+    // Add trail effect for enemy projectile
+    if (tex === 'enemy-projectile') {
+      // Destroy existing trail if reusing sprite
+      if ((b as any).trail) {
+        (b as any).trail.destroy()
+      }
+
+      // Create a graphics trail that follows the projectile
+      const trail = this.add.graphics().setDepth(3)
+      ;(b as any).trail = trail
+
+      const trailPoints: Array<{x: number, y: number, alpha: number}> = []
+      const maxTrailLength = 8
+
+      // Store update function on the bullet
+      ;(b as any).trailUpdate = () => {
+        if (!b.active) {
+          trail.destroy()
+          return
+        }
+
+        // Add current position to trail
+        trailPoints.unshift({ x: b.x, y: b.y, alpha: 1 })
+        if (trailPoints.length > maxTrailLength) {
+          trailPoints.pop()
+        }
+
+        // Draw trail
+        trail.clear()
+        for (let i = 0; i < trailPoints.length - 1; i++) {
+          const p1 = trailPoints[i]
+          const p2 = trailPoints[i + 1]
+          const alpha = 0.6 * (1 - i / maxTrailLength)
+          const width = 3 * (1 - i / maxTrailLength)
+          trail.lineStyle(width, 0x9944ff, alpha)
+          trail.lineBetween(p1.x, p1.y, p2.x, p2.y)
+        }
+      }
+
+      // Add to scene update
+      this.events.on('update', (b as any).trailUpdate)
+    }
+
+    // Cancel any existing timer from previous use
+    if ((b as any).disableTimer) {
+      (b as any).disableTimer.remove()
+    }
+
+    ;(b as any).disableTimer = this.time.delayedCall(3000, () => {
+      if (b.active) {
+        // Clean up trail
+        if ((b as any).trail) {
+          (b as any).trail.destroy()
+          this.events.off('update', (b as any).trailUpdate)
+        }
+        b.disableBody(true, true)
+      }
+    })
   }
 
   private onAsteroidHit(objA: Phaser.Physics.Arcade.Sprite, objB: Phaser.Physics.Arcade.Sprite) {
