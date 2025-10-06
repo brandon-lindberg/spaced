@@ -330,16 +330,56 @@ export class RunProgressManager {
     const pool: LevelUpChoice[] = [
       { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
       { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
-      { key: 'w-blaster', label: 'Upgrade Blaster', color: '#ffffff' },
-      { key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' },
-      { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam', color: '#33ff99' },
-      { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' },
-      { key: 'acc-power-cell', label: 'Accessory: Power Cell', color: '#ff8866' },
-      { key: 'acc-splitter', label: 'Accessory: Splitter', color: '#ccccff' },
-      { key: 'w-laser', label: 'Weapon: Laser', color: '#ff66ff' },
-      { key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' },
-      { key: 'w-orb', label: 'Weapon: Orb', color: '#66ccff' },
     ]
+
+    // Only include weapon upgrades if they're not at max level
+    const blaster = this.inventory.weapons.find(w => w.key === 'blaster')
+    if (blaster && blaster.level < MAX_WEAPON_LEVEL) {
+      pool.push({ key: 'w-blaster', label: 'Upgrade Blaster', color: '#ffffff' })
+    }
+
+    // Only include accessories if they're not at max level
+    const thrusters = this.inventory.accessories.find(a => a.key === 'thrusters')
+    if (!thrusters || thrusters.level < MAX_ACCESSORY_LEVEL) {
+      pool.push({ key: 'acc-thrusters', label: 'Accessory: Thrusters', color: '#66ccff' })
+    }
+
+    const magnetCore = this.inventory.accessories.find(a => a.key === 'magnet-core')
+    if (!magnetCore || magnetCore.level < MAX_ACCESSORY_LEVEL) {
+      pool.push({ key: 'acc-magnet-core', label: 'Accessory: Tractor Beam', color: '#33ff99' })
+    }
+
+    const ammoLoader = this.inventory.accessories.find(a => a.key === 'ammo-loader')
+    if (!ammoLoader || ammoLoader.level < MAX_ACCESSORY_LEVEL) {
+      pool.push({ key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader', color: '#ffaa66' })
+    }
+
+    const powerCell = this.inventory.accessories.find(a => a.key === 'power-cell')
+    if (!powerCell || powerCell.level < MAX_ACCESSORY_LEVEL) {
+      pool.push({ key: 'acc-power-cell', label: 'Accessory: Power Cell', color: '#ff8866' })
+    }
+
+    const splitter = this.inventory.accessories.find(a => a.key === 'splitter')
+    if (!splitter || splitter.level < MAX_ACCESSORY_LEVEL) {
+      pool.push({ key: 'acc-splitter', label: 'Accessory: Splitter', color: '#ccccff' })
+    }
+
+    // Only include new weapons if player doesn't have them yet or they're not at max level
+    const laser = this.inventory.weapons.find(w => w.key === 'laser')
+    if (!laser || laser.level < MAX_WEAPON_LEVEL) {
+      pool.push({ key: 'w-laser', label: 'Weapon: Laser', color: '#ff66ff' })
+    }
+
+    const missiles = this.inventory.weapons.find(w => w.key === 'missiles')
+    if (!missiles || missiles.level < MAX_WEAPON_LEVEL) {
+      pool.push({ key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' })
+    }
+
+    const orb = this.inventory.weapons.find(w => w.key === 'orb')
+    if (!orb || orb.level < MAX_WEAPON_LEVEL) {
+      pool.push({ key: 'w-orb', label: 'Weapon: Orb', color: '#66ccff' })
+    }
+
     Phaser.Utils.Array.Shuffle(pool)
     const choices = pool.slice(0, 3)
     this.events.onLevelUpChoices(choices)
