@@ -59,6 +59,10 @@ export default class PreloadScene extends Phaser.Scene {
     // Load explosion sprites
     this.load.image('explosion-small', 'assets/effects/explosions/explosion_small.png')
     this.load.image('explosion-medium', 'assets/effects/explosions/explosion_medium.png')
+    // Load projectile sprites
+    this.load.image('blaster-projectile', 'assets/projectiles/blaster_one.png')
+    this.load.image('missile-projectile', 'assets/projectiles/missile_one.png')
+    this.load.image('orb-projectile', 'assets/projectiles/orb_one.png')
     makeRect('icon-acc',10,10,0x226644)
     // Game sprites
     makeRect('blaster-tex',3,3,0xffffff)
