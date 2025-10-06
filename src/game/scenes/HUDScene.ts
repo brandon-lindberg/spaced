@@ -57,18 +57,11 @@ export default class HUDScene extends Phaser.Scene {
       if (this.textures.exists(key)) return
       const g = this.add.graphics(); g.fillStyle(color, 1); g.fillRect(0,0,10,10); g.generateTexture(key,10,10); g.destroy()
     }
-    ensureBlockIcon('icon-weapon', 0x4444aa)
-    ensureBlockIcon('icon-weapon-laser', 0xaa44aa)
-    ensureBlockIcon('icon-weapon-missiles', 0xffaa33)
-    ensureBlockIcon('icon-weapon-orb', 0x66ccff)
+    // Only ensure accessory icon as fallback
     ensureBlockIcon('icon-acc', 0x226644)
     const drawIcons = () => {
       iconLayer.removeAll(true)
-      // Defensive: ensure textures exist before use
-      ensureBlockIcon('icon-weapon', 0x4444aa)
-      ensureBlockIcon('icon-weapon-laser', 0xaa44aa)
-      ensureBlockIcon('icon-weapon-missiles', 0xffaa33)
-      ensureBlockIcon('icon-weapon-orb', 0x66ccff)
+      // Only ensure accessory icon as fallback
       ensureBlockIcon('icon-acc', 0x226644)
       const weaponsStr = (this.registry.get('inv-weapons') as string) || ''
       const accStr = (this.registry.get('inv-accessories') as string) || ''
@@ -85,6 +78,7 @@ export default class HUDScene extends Phaser.Scene {
         if (/Orb/i.test(name)) key = 'icon-weapon-orb'
         if (this.textures.exists(key)) {
           const img = this.add.image(x + 6, y + 6, key).setOrigin(0.5).setScrollFactor(0)
+          img.setDisplaySize(12, 12)
           iconLayer.add(img)
         }
         // pips under icon
@@ -103,6 +97,7 @@ export default class HUDScene extends Phaser.Scene {
           const lvl = match ? parseInt(match[2], 10) : 1
           if (this.textures.exists('icon-acc')) {
             const img = this.add.image(x + 6, y + 6, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
+            img.setDisplaySize(12, 12)
             iconLayer.add(img)
           }
           for (let i = 0; i < Math.min(6, lvl); i++) {

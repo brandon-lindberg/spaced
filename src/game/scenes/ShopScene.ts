@@ -359,7 +359,12 @@ export default class ShopScene extends Phaser.Scene {
         const labelPrefix = isWeapon ? 'Upgrade Weapon' : 'Upgrade Acc'
         const maxLevel = isWeapon ? MAX_WEAPON_LEVEL : MAX_ACCESSORY_LEVEL
         const tooltip = isWeapon ? 'Increase weapon damage or rate based on weapon type' : 'Boost passive stats for this run'
-        const icon = isWeapon ? 'icon-weapon' : 'icon-acc'
+        let icon = isWeapon ? 'icon-weapon' : 'icon-acc'
+        if (isWeapon) {
+          if (/laser/i.test(p.key)) icon = 'icon-weapon-laser'
+          else if (/missile/i.test(p.key)) icon = 'icon-weapon-missiles'
+          else if (/orb/i.test(p.key)) icon = 'icon-weapon-orb'
+        }
         const getCurrentLevel = () => {
           if (isWeapon) return inv.weapons.find((w) => w.key === p.key)?.level ?? 0
           return inv.accessories.find((a) => a.key === p.key)?.level ?? 0
