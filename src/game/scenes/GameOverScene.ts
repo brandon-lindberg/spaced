@@ -1,35 +1,101 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { createInventory } from '../systems/inventory'
-import { attachGamepad, ensureMobileGamepadInit } from '../systems/gamepad'
+import { MenuButton } from '../ui/MenuComponents'
+import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
 
 export default class GameOverScene extends Phaser.Scene {
+  private buttons: MenuButton[] = []
+  private navigator?: MenuNavigator
+
   constructor() {
     super('GameOver')
   }
 
   create() {
     const { width, height } = this.scale
-    this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0,0)
-    this.add.text(width / 2, height / 2 - 16, 'Game Over', { fontFamily: 'monospace', fontSize: '14px', color: '#ff6666' }).setOrigin(0.5)
+
+    // Dark overlay
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.9)
+      .setOrigin(0, 0)
+      .setDepth(1000)
+
+    // Game Over title with glitch effect
+    const title = this.add.text(width / 2, height / 2 - 360, '☠️ GAME OVER', {
+      fontFamily: 'monospace',
+      fontSize: '168px',
+      color: '#ff6666',
+      fontStyle: 'bold',
+      stroke: '#330000',
+      strokeThickness: 24,
+    }).setOrigin(0.5).setDepth(1010)
+
+    // Subtle shake animation
+    this.tweens.add({
+      targets: title,
+      x: width / 2 + 12,
+      duration: 100,
+      yoyo: true,
+      repeat: -1,
+    })
+
+    // Info text
+    this.add.text(width / 2, height / 2 - 60,
+      'Retry to continue with HP level-ups', {
+      fontFamily: 'monospace',
+      fontSize: '66px',
+      color: '#aaaaaa',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(1010)
 
     // Retry button
-    const retryBtn = this.add.rectangle(width / 2, height / 2 + 2, 140, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    this.add.text(retryBtn.x, retryBtn.y, 'Retry', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5)
-    // Return to title button
-    const titleBtn = this.add.rectangle(width / 2, height / 2 + 24, 140, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true })
-    this.add.text(titleBtn.x, titleBtn.y, 'Return to Title', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5)
-    this.input.enabled = true
-    if (this.input.keyboard) this.input.keyboard.enabled = true
-    this.input.keyboard?.removeAllListeners()
-    this.input.removeAllListeners()
-    retryBtn.on('pointerdown', () => this.retry())
-    titleBtn.on('pointerdown', () => this.toTitle())
-    // Explanatory note placed below buttons so it isn't obscured
-    this.add.text(width / 2, titleBtn.y + 16 + 8, 'Retry HP level-ups carry over to next run.', { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5)
+    const retryButton = new MenuButton({
+      scene: this,
+      x: width / 2 - 660,
+      y: height / 2 + 240,
+      width: 600,
+      height: 240,
+      text: 'Retry',
+      primary: true,
+      onClick: () => this.retry(),
+    })
+    retryButton.getContainer().setDepth(1010)
+    this.buttons.push(retryButton)
 
-    ensureMobileGamepadInit(this)
-    attachGamepad(this, { confirm: () => this.retry(), cancel: () => this.toTitle() })
+    // Return to title button
+    const titleButton = new MenuButton({
+      scene: this,
+      x: width / 2 + 60,
+      y: height / 2 + 240,
+      width: 600,
+      height: 240,
+      text: 'Main Menu',
+      onClick: () => this.toTitle(),
+    })
+    titleButton.getContainer().setDepth(1010)
+    this.buttons.push(titleButton)
+
+    // Setup navigation
+    const navigableItems: NavigableItem[] = this.buttons.map((_button, index) => ({
+      index,
+      onFocus: () => {},
+      onBlur: () => {},
+      onActivate: () => {
+        if (index === 0) this.retry()
+        else this.toTitle()
+      },
+    }))
+
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns: 2,
+      onActivate: (index) => {
+        if (index === 0) this.retry()
+        else this.toTitle()
+      },
+      onCancel: () => this.toTitle(),
+    })
   }
 
   private retry() {
@@ -40,10 +106,10 @@ export default class GameOverScene extends Phaser.Scene {
     this.scene.stop('Shop')
     this.scene.stop('Cutscene')
     this.scene.stop('Victory')
-    // Restore full health on retry, handle Level 1 vs other levels differently
+
     const hp = (this.registry.get('hp') as { cur: number; max: number } | undefined) ?? { cur: 10, max: 10 }
     const lvl = runState.state?.level ?? 1
-    
+
     if (lvl === 1) {
       // Level 1: Reset everything to starting values (except health level-ups)
       this.registry.set('level', 1)
@@ -52,7 +118,6 @@ export default class GameOverScene extends Phaser.Scene {
       this.registry.set('gold', 0)
       this.registry.set('inv', createInventory())
       this.registry.set('boss-hp', null)
-      // Reset all weapon bonuses but preserve health level-ups
       this.registry.set('bonuses', {
         fireRateMul: 1,
         damage: 0,
@@ -73,10 +138,9 @@ export default class GameOverScene extends Phaser.Scene {
         this.registry.set('inv', snap.inv)
         this.registry.set('boss-hp', null)
         this.registry.set('bonuses', snap.bonuses)
-        // Use the checkpoint level for runState
         runState.startLevel(snap.playerLevel, this.time.now)
       } else {
-        // fallback - reset to level 1 if no checkpoint
+        // Fallback
         this.registry.set('level', 1)
         this.registry.set('xp', 0)
         this.registry.set('xpToNext', 3)
@@ -87,17 +151,17 @@ export default class GameOverScene extends Phaser.Scene {
         runState.startLevel(1, this.time.now)
       }
     }
-    
-    // Only call startLevel for level 1 case
+
     if (lvl === 1) {
       runState.startLevel(lvl, this.time.now)
     }
-    // restore HP state (full health on retry)
+
     this.registry.set('hp', { cur: hp.max, max: hp.max })
-    // Stop any existing Game scene
+
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()
-    // Transition on next tick to avoid mid-callback conflicts
+
+    this.cleanup()
     this.time.delayedCall(0, () => {
       this.scene.start('Game')
       this.scene.launch('HUD')
@@ -106,29 +170,40 @@ export default class GameOverScene extends Phaser.Scene {
   }
 
   private toTitle() {
-    // Stop overlays and game
+    // Stop overlays
     this.scene.stop('HUD')
     this.scene.stop('LevelUp')
     this.scene.stop('Pause')
     this.scene.stop('Shop')
     this.scene.stop('Cutscene')
     this.scene.stop('Victory')
+
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()
+
     runState.newRun()
-    // Full reset including HP
+
     this.registry.set('gold', 0)
     this.registry.set('xp', 0)
     this.registry.set('inv', createInventory())
     this.registry.set('level', 1)
     this.registry.set('boss-hp', null)
     this.registry.set('hp', { cur: 10, max: 10 })
-    // Transition on next tick
+
+    this.cleanup()
     this.time.delayedCall(0, () => {
       this.scene.start('Menu')
       this.scene.stop()
     })
   }
+
+  private cleanup() {
+    this.navigator?.destroy()
+    this.buttons.forEach((btn) => btn.destroy())
+    this.buttons = []
+  }
+
+  shutdown() {
+    this.cleanup()
+  }
 }
-
-

@@ -63,7 +63,7 @@ export class EnemyManager {
 
     const viewRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height) * 0.5
     const inner = viewRadius * 0.9
-    const outer = inner + 80
+    const outer = inner + 480
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const radius = Phaser.Math.FloatBetween(inner, outer)
     const x = cx + Math.cos(angle) * radius
@@ -84,17 +84,17 @@ export class EnemyManager {
     enemy.setRotation(0)
     enemy.clearTint()
 
-    if (type === 'chaser') enemy.setScale(0.0234375)
-    else if (type === 'fodder') enemy.setScale(0.017578125)
-    else if (type === 'tank') enemy.setScale(0.03125)
-    else enemy.setScale(1)
+    if (type === 'chaser') enemy.setScale(0.140625)
+    else if (type === 'fodder') enemy.setScale(0.10546875)
+    else if (type === 'tank') enemy.setScale(0.1875)
+    else enemy.setScale(6)
 
     enemy.enableBody(true, x, y, true, true)
 
-    let hitboxRadius = 3
-    if (type === 'chaser') hitboxRadius = 12
-    else if (type === 'fodder') hitboxRadius = 9
-    else if (type === 'tank') hitboxRadius = 16
+    let hitboxRadius = 18
+    if (type === 'chaser') hitboxRadius = 72
+    else if (type === 'fodder') hitboxRadius = 54
+    else if (type === 'tank') hitboxRadius = 96
     setCircleHitbox(enemy, hitboxRadius)
     enemy.setCollideWorldBounds(false)
     ;(enemy as any).elite = false

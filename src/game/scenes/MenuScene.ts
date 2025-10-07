@@ -2,214 +2,246 @@ import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { getBankGold } from '../systems/storage'
 import { createInventory } from '../systems/inventory'
-import { attachGamepad, attachGamepadDebug, ensureGamepadProbe, ensureMobileGamepadInit } from '../systems/gamepad'
-//
+import { MenuButton, MenuCard } from '../ui/MenuComponents'
+import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
+import { IconGenerator } from '../ui/IconGenerator'
+import { ensureGamepadProbe } from '../systems/gamepad'
 
 export default class MenuScene extends Phaser.Scene {
+  private buttons: MenuButton[] = []
+  private navigator?: MenuNavigator
+
   constructor() {
     super('Menu')
   }
 
   create() {
+    // Generate icons
+    IconGenerator.generateIcons(this)
+
+    // Use game dimensions (base resolution for positioning)
     const { width, height } = this.scale
-    const title = this.add.text(width / 2, height / 2 - 70, 'Spaced', {
+
+    // Background
+    this.add.rectangle(0, 0, width, height, 0x0a0d1f, 1).setOrigin(0, 0)
+
+    // Title with glow
+    const title = this.add.text(width / 2, 180, 'SPACED', {
       fontFamily: 'monospace',
-      fontSize: '24px',
-      color: '#ffffff',
+      fontSize: '96px',
+      color: '#66ccff',
+      fontStyle: 'bold',
+      stroke: '#0044aa',
+      strokeThickness: 12,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
+
+    // Pulse animation
+    this.tweens.add({
+      targets: title,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
     })
-    title.setOrigin(0.5).setScrollFactor(0)
 
-    // Panel container
-    const panel = this.add.rectangle(width / 2, height / 2 + 24, 220, 130, 0x0b0e20, 0.85).setOrigin(0.5)
-    panel.setStrokeStyle(1, 0x3355ff, 1).setScrollFactor(0)
-
-    // Buttons: Start Game, Level Select, Options (vertical list)
-    const startBtn = this.add.rectangle(width / 2, height / 2 - 6, 180, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0)
-    const startTxt = this.add.text(startBtn.x, startBtn.y, 'Start Game', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0)
-    const levelBtn = this.add.rectangle(width / 2, height / 2 + 18, 180, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0)
-    const levelTxt = this.add.text(levelBtn.x, levelBtn.y, 'Level Select', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0)
-    const optBtn = this.add.rectangle(width / 2, height / 2 + 42, 180, 18, 0x222233, 1).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0)
-    const optTxt = this.add.text(optBtn.x, optBtn.y, 'Options', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0)
-
-    const bank = this.add.text(6, height - 14, `Bank: ${getBankGold()}g`, {
+    // Bank gold display
+    this.add.text(24, height - 24, `Bank: ${getBankGold()}g`, {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '36px',
       color: '#ffcc33',
-    })
-    bank.setScrollFactor(0)
+    }).setOrigin(0, 1).setScrollFactor(0).setDepth(10)
 
-    // Ensure input is enabled after returning from other scenes
+    // Create main menu buttons
+    this.createMainMenu(width, height)
+
+    // Ensure input is enabled
     this.input.enabled = true
     if (this.input.keyboard) this.input.keyboard.enabled = true
 
-    const start = () => {
-      runState.newRun()
-      this.scene.start('Game')
-      this.scene.launch('HUD')
-    }
-    
-    const showLevelSelect = () => {
-      this.showLevelSelectMenu()
-    }
-    
-    startBtn.on('pointerdown', start)
-    levelBtn.on('pointerdown', showLevelSelect)
-    optBtn.on('pointerdown', () => this.scene.start('Options'))
-    
-    // Keyboard navigation
-    this.input.keyboard?.on('keydown-UP', () => { sel = (sel + 2) % 3; highlight() })
-    this.input.keyboard?.on('keydown-DOWN', () => { sel = (sel + 1) % 3; highlight() })
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      if (sel === 0) start()
-      else if (sel === 1) showLevelSelect()
-      else this.scene.start('Options')
-    })
-
-    // Gamepad: confirm to start; down/up to navigate; cancel no-op
-    let sel = 0
-    const highlight = () => {
-      const on = (r: Phaser.GameObjects.Rectangle, t: Phaser.GameObjects.Text, active: boolean) => {
-        r.setFillStyle(active ? 0x333355 : 0x222233, 1)
-        t.setColor(active ? '#ffffcc' : '#ffffff')
-      }
-      on(startBtn, startTxt, sel === 0)
-      on(levelBtn, levelTxt, sel === 1)
-      on(optBtn, optTxt, sel === 2)
-    }
-    highlight()
-    const focus = this.add.graphics().setDepth(999).setScrollFactor(0)
-    const updateFocus = () => {
-      const w = sel===0?startTxt:sel===1?levelTxt:optTxt
-      const b = w.getBounds()
-      focus.clear(); focus.lineStyle(1, 0xffff66, 1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
-    }
-    updateFocus()
-    attachGamepad(this, {
-      up: () => { sel = (sel + 2) % 3; highlight(); updateFocus() },
-      down: () => { sel = (sel + 1) % 3; highlight(); updateFocus() },
-      confirm: () => {
-        if (sel === 0) start()
-        else if (sel === 1) showLevelSelect()
-        else this.scene.start('Options')
-      },
-    })
-    attachGamepadDebug(this)
-    ensureMobileGamepadInit(this)
+    // Gamepad setup
     ensureGamepadProbe(this)
 
-    // Show toast when a controller connects
+    // Toast for controller connection
     this.input.gamepad?.once('connected', () => {
       this.registry.set('toast', 'Controller detected')
     })
   }
 
-  private showLevelSelectMenu() {
-    const { width, height } = this.scale
-    
-    // Clear existing menu elements
-    this.children.removeAll()
-    
-    // Background overlay
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8).setOrigin(0.5).setScrollFactor(0)
-    
-    // Title
-    this.add.text(width / 2, height / 2 - 80, 'Select Level', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5).setScrollFactor(0)
-    
-    // Level buttons container
-    const levels = [1, 2, 3, 4, 5]
-    const levelButtons: Phaser.GameObjects.Rectangle[] = []
-    const levelTexts: Phaser.GameObjects.Text[] = []
-    
-    levels.forEach((level, index) => {
-      const x = width / 2 - 60 + (index % 3) * 60
-      const y = height / 2 - 20 + Math.floor(index / 3) * 30
-      
-      const btn = this.add.rectangle(x, y, 50, 20, 0x222233, 1)
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-        .setScrollFactor(0)
-      
-      const txt = this.add.text(x, y, `Level ${level}`, {
-        fontFamily: 'monospace',
-        fontSize: '8px',
-        color: '#ffffff'
-      }).setOrigin(0.5).setScrollFactor(0)
-      
-      levelButtons.push(btn)
-      levelTexts.push(txt)
-      
-      // Level button click handler
-      btn.on('pointerdown', () => {
-        this.startLevel(level)
-      })
+  private createMainMenu(width: number, height: number) {
+    const buttonY = height / 2
+    const buttonGap = 96
+
+    // Start Game button
+    const startButton = new MenuButton({
+      scene: this,
+      x: width / 2 - 240,
+      y: buttonY - buttonGap,
+      width: 480,
+      height: 84,
+      text: 'Start Game',
+      primary: true,
+      onClick: () => this.startGame(),
     })
-    
-    // Back button
-    const backBtn = this.add.rectangle(width / 2, height / 2 + 60, 100, 18, 0x333344, 1)
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-      .setScrollFactor(0)
-    
-    this.add.text(backBtn.x, backBtn.y, 'Back', {
-      fontFamily: 'monospace',
-      fontSize: '10px',
-      color: '#ffffff'
-    }).setOrigin(0.5).setScrollFactor(0)
-    
-    backBtn.on('pointerdown', () => {
-      this.scene.restart()
+    startButton.getContainer().setDepth(10)
+    this.buttons.push(startButton)
+
+    // Level Select button
+    const levelSelectButton = new MenuButton({
+      scene: this,
+      x: width / 2 - 240,
+      y: buttonY,
+      width: 480,
+      height: 84,
+      text: 'Level Select',
+      onClick: () => this.showLevelSelectMenu(),
     })
-    
-    // Keyboard navigation for level select
-    let selectedLevel = 0
-    const updateLevelHighlight = () => {
-      levelButtons.forEach((btn, index) => {
-        const isSelected = index === selectedLevel
-        btn.setFillStyle(isSelected ? 0x333355 : 0x222233, 1)
-        levelTexts[index].setColor(isSelected ? '#ffffcc' : '#ffffff')
-      })
-    }
-    
-    this.input.keyboard?.on('keydown-LEFT', () => {
-      selectedLevel = Math.max(0, selectedLevel - 1)
-      updateLevelHighlight()
+    levelSelectButton.getContainer().setDepth(10)
+    this.buttons.push(levelSelectButton)
+
+    // Options button
+    const optionsButton = new MenuButton({
+      scene: this,
+      x: width / 2 - 240,
+      y: buttonY + buttonGap,
+      width: 480,
+      height: 84,
+      text: 'Options',
+      onClick: () => this.scene.start('Options'),
     })
-    
-    this.input.keyboard?.on('keydown-RIGHT', () => {
-      selectedLevel = Math.min(levels.length - 1, selectedLevel + 1)
-      updateLevelHighlight()
+    optionsButton.getContainer().setDepth(10)
+    this.buttons.push(optionsButton)
+
+    // Setup navigation
+    const navigableItems: NavigableItem[] = this.buttons.map((_button, index) => ({
+      index,
+      onFocus: () => {},
+      onBlur: () => {},
+      onActivate: () => {
+        if (index === 0) this.startGame()
+        else if (index === 1) this.showLevelSelectMenu()
+        else this.scene.start('Options')
+      },
+    }))
+
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns: 1,
+      onActivate: (index) => {
+        if (index === 0) this.startGame()
+        else if (index === 1) this.showLevelSelectMenu()
+        else this.scene.start('Options')
+      },
     })
-    
-    this.input.keyboard?.on('keydown-UP', () => {
-      selectedLevel = Math.max(0, selectedLevel - 3)
-      updateLevelHighlight()
-    })
-    
-    this.input.keyboard?.on('keydown-DOWN', () => {
-      selectedLevel = Math.min(levels.length - 1, selectedLevel + 3)
-      updateLevelHighlight()
-    })
-    
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      this.startLevel(levels[selectedLevel])
-    })
-    
-    this.input.keyboard?.on('keydown-ESC', () => {
-      this.scene.restart()
-    })
-    
-    updateLevelHighlight()
   }
-  
+
+  private startGame() {
+    runState.newRun()
+    this.cleanup()
+    this.scene.start('Game')
+    this.scene.launch('HUD')
+  }
+
+  private showLevelSelectMenu() {
+    // Clear existing UI
+    this.cleanup()
+    this.children.removeAll()
+
+    const { width, height } = this.scale
+
+    // Background
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0, 0).setDepth(5)
+
+    // Title
+    this.add.text(width / 2, 240, 'Select Level', {
+      fontFamily: 'monospace',
+      fontSize: '60px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
+
+    // Level cards
+    const levels = [1, 2, 3, 4, 5]
+    const cardWidth = 180
+    const cardHeight = 144
+    const gap = 36
+    const startX = (width - (cardWidth * 3 + gap * 2)) / 2
+    const startY = height / 2 - 60
+
+    const levelCards: MenuCard[] = []
+
+    levels.forEach((level, index) => {
+      const col = index % 3
+      const row = Math.floor(index / 3)
+      const x = startX + col * (cardWidth + gap)
+      const y = startY + row * (cardHeight + gap)
+
+      const card = new MenuCard({
+        scene: this,
+        x,
+        y,
+        width: cardWidth,
+        height: cardHeight,
+        title: `Level ${level}`,
+        description: '',
+        onClick: () => this.startLevel(level),
+      })
+      card.getContainer().setDepth(10)
+      levelCards.push(card)
+    })
+
+    // Back button
+    const backButton = new MenuButton({
+      scene: this,
+      x: width / 2 - 150,
+      y: height - 180,
+      width: 300,
+      height: 72,
+      text: 'Back',
+      onClick: () => {
+        levelCards.forEach((c) => c.destroy())
+        this.scene.restart()
+      },
+    })
+    backButton.getContainer().setDepth(10)
+
+    // Setup navigation for level select
+    const navigableItems: NavigableItem[] = [
+      ...levelCards.map((card, index) => ({
+        index,
+        onFocus: () => card.setFocused(true),
+        onBlur: () => card.setFocused(false),
+        onActivate: () => this.startLevel(levels[index]),
+      })),
+      {
+        index: levelCards.length,
+        onFocus: () => {},
+        onBlur: () => {},
+        onActivate: () => {
+          levelCards.forEach((c) => c.destroy())
+          this.scene.restart()
+        },
+      },
+    ]
+
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns: 3,
+      onCancel: () => {
+        levelCards.forEach((c) => c.destroy())
+        this.scene.restart()
+      },
+    })
+  }
+
   private startLevel(level: number) {
     runState.newRun()
     runState.startLevel(level, this.time.now)
-    
-    // Create a checkpoint for level select so retry works properly
+
+    // Create checkpoint for level select
     if (level > 1) {
       const snapshot = {
         playerLevel: level,
@@ -229,10 +261,19 @@ export default class MenuScene extends Phaser.Scene {
       }
       runState.setCheckpoint(level, snapshot)
     }
-    
+
+    this.cleanup()
     this.scene.start('Game')
     this.scene.launch('HUD')
   }
+
+  private cleanup() {
+    this.navigator?.destroy()
+    this.buttons.forEach((btn) => btn.destroy())
+    this.buttons = []
+  }
+
+  shutdown() {
+    this.cleanup()
+  }
 }
-
-

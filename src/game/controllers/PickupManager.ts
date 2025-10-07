@@ -103,7 +103,7 @@ export class PickupManager {
   spawnGoldBurst(x: number, y: number, count: number) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2
-      const dist = Math.random() * 6
+      const dist = Math.random() * 36
       this.spawnGold(x + Math.cos(angle) * dist, y + Math.sin(angle) * dist, true)
     }
   }
@@ -120,8 +120,8 @@ export class PickupManager {
     if (!p) return
     p.setActive(true).setVisible(true)
     p.setTint(0x22ddaa)
-    p.setScale(1)
-    this.scene.tweens.add({ targets: p, y: p.y - 2, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
+    p.setScale(6)
+    this.scene.tweens.add({ targets: p, y: p.y - 12, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
     this.scene.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })
   }
 

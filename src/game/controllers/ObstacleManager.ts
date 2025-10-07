@@ -70,10 +70,10 @@ export class ObstacleManager {
     if (!this.scene.textures.exists('asteroid-rock')) {
       const g = this.scene.add.graphics()
       g.fillStyle(0x7a7f88, 1)
-      g.fillCircle(8, 8, 8)
+      g.fillCircle(48, 48, 48)
       g.fillStyle(0x9aa0aa, 1)
-      g.fillCircle(5, 6, 3)
-      g.generateTexture('asteroid-rock', 16, 16)
+      g.fillCircle(30, 36, 18)
+      g.generateTexture('asteroid-rock', 96, 96)
       g.destroy()
     }
   }
@@ -100,7 +100,7 @@ export class ObstacleManager {
     if (!this.asteroidStatics) return
     const viewRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height) * 0.5
     const inner = viewRadius * 0.9
-    const outer = inner + 120
+    const outer = inner + 720
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const radius = Phaser.Math.FloatBetween(inner, outer)
     const x = cx + Math.cos(angle) * radius
@@ -108,7 +108,7 @@ export class ObstacleManager {
     const asteroid = this.asteroidStatics.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
     if (!asteroid) return
     asteroid.enableBody(true, x, y, true, true)
-    asteroid.setCircle(7, 1, 1)
+    asteroid.setCircle(42, 6, 6)
     asteroid.setImmovable(true)
     ;(asteroid as any).isAsteroid = true
     ;(asteroid as any).damageCooldownUntil = 0
@@ -118,7 +118,7 @@ export class ObstacleManager {
     if (!this.asteroidMovers) return
     const viewRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height) * 0.5
     const inner = viewRadius * 0.9
-    const outer = inner + 140
+    const outer = inner + 840
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const radius = Phaser.Math.FloatBetween(inner, outer)
     const x = cx + Math.cos(angle) * radius
@@ -126,7 +126,7 @@ export class ObstacleManager {
     const asteroid = this.asteroidMovers.get(x, y, 'asteroid-rock') as Phaser.Physics.Arcade.Sprite
     if (!asteroid) return
     asteroid.enableBody(true, x, y, true, true)
-    asteroid.setCircle(7, 1, 1)
+    asteroid.setCircle(42, 6, 6)
     ;(asteroid as any).isAsteroid = true
     ;(asteroid as any).damageCooldownUntil = 0
     const toCenter = Math.atan2(cy - y, cx - x)

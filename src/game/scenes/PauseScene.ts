@@ -1,99 +1,229 @@
 import Phaser from 'phaser'
 import { getOptions, setOptions } from '../systems/options'
-import { attachGamepad, attachGamepadDebug, ensureMobileGamepadInit } from '../systems/gamepad'
+import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
 
 export default class PauseScene extends Phaser.Scene {
+  private toggles: {
+    widget: Phaser.GameObjects.Text
+    toggle: () => void
+  }[] = []
+  private navigator?: MenuNavigator
+
   constructor() {
     super('Pause')
   }
 
   create() {
-    // Notify game that pause started (for timer adjustments)
+    // Notify game that pause started
     this.game.events.emit('pause-opened')
+
     const { width, height } = this.scale
-    // Panel
-    const panel = this.add.rectangle(width/2, height/2, 220, 165, 0x0b0e20, 0.9).setOrigin(0.5)
-    panel.setStrokeStyle(1, 0x3355ff, 1)
-    const text = this.add.text(width / 2, height / 2 - 40, 'Paused', {
+
+    // Semi-transparent overlay
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.7)
+      .setOrigin(0, 0)
+      .setDepth(1000)
+
+    // Panel background
+    const panelWidth = Math.min(1800, width - 240)
+    const panelHeight = Math.min(1560, height - 480)
+    const panelX = width / 2
+    const panelY = height / 2
+
+    const panel = this.add.graphics().setDepth(1001)
+    panel.fillStyle(0x0b0e20, 0.95)
+    panel.fillRoundedRect(
+      panelX - panelWidth / 2,
+      panelY - panelHeight / 2,
+      panelWidth,
+      panelHeight,
+      48
+    )
+    panel.lineStyle(12, 0x3355ff, 1)
+    panel.strokeRoundedRect(
+      panelX - panelWidth / 2,
+      panelY - panelHeight / 2,
+      panelWidth,
+      panelHeight,
+      48
+    )
+
+    // Title
+    this.add.text(panelX, panelY - panelHeight / 2 + 144, '⏸ PAUSED', {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '108px',
       color: '#ffffff',
-      backgroundColor: '#00000088',
-      padding: { x: 4, y: 2 },
-    })
-    text.setOrigin(0.5)
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(1010)
+
+    // Toggle buttons
+    const startY = panelY - panelHeight / 2 + 384
+    const gap = 240
 
     const mkToggle = (label: string, getVal: () => boolean, setVal: (b: boolean) => void, y: number) => {
-      const t = this.add.text(width / 2, height / 2 + y, `${label}: ${getVal() ? 'ON' : 'OFF'}`, {
-        fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 }
-      }).setOrigin(0.5)
-      t.setInteractive({ useHandCursor: true })
-      const toggle = () => { setVal(!getVal()); t.setText(`${label}: ${getVal() ? 'ON' : 'OFF'}`); this.game.events.emit('options-updated') }
-      t.on('pointerdown', toggle)
-      return { node: t, toggle }
-    }
-    const wShake = mkToggle('Screen Shake', () => getOptions().screenShake, (b) => setOptions({ screenShake: b }), -36)
-    const wCrt = mkToggle('CRT Filter', () => getOptions().crtFilter, (b) => setOptions({ crtFilter: b }), -12)
-    const wFps = mkToggle('Show FPS', () => getOptions().showFPS, (b) => setOptions({ showFPS: b }), 12)
-    const vol = this.add.text(width / 2, height / 2 + 40, `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
-    vol.setInteractive({ useHandCursor: true })
-    const incVol = () => {
-      const o = getOptions()
-      const nextMusic = Math.max(0, Math.min(1, o.musicVolume + 0.1))
-      const nextSfx = Math.max(0, Math.min(1, o.sfxVolume + 0.1))
-      setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
-    }
-    const decVol = () => {
-      const o = getOptions()
-      const nextMusic = Math.max(0, Math.min(1, o.musicVolume - 0.1))
-      const nextSfx = Math.max(0, Math.min(1, o.sfxVolume - 0.1))
-      setOptions({ musicVolume: nextMusic, sfxVolume: nextSfx }); vol.setText(`Music ${Math.round(nextMusic * 100)}% | SFX ${Math.round(nextSfx * 100)}%`); this.game.events.emit('options-updated')
-    }
-    vol.on('pointerdown', incVol)
-    const volDown = this.add.text(width / 2, height / 2 + 68, 'Vol -', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#111144', padding: { x: 6, y: 3 } }).setOrigin(0.5)
-    volDown.setInteractive({ useHandCursor: true })
-    volDown.on('pointerdown', decVol)
+      const widget = this.add.text(
+        panelX,
+        y,
+        `${label}: ${getVal() ? 'ON' : 'OFF'}`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '72px',
+          color: '#ffffff',
+          backgroundColor: '#222244',
+          padding: { x: 72, y: 36 },
+        }
+      ).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    const widgets = [wShake.node, wCrt.node, wFps.node, vol, volDown]
-    let sel = 0
-    const highlight = () => {
-      widgets.forEach((w, i) => w.setStyle({ backgroundColor: i === sel ? '#3355ff' : '#111144', color: i === sel ? '#ffffcc' : '#ffffff' }))
-    }
-    highlight()
-    // Focus outline for accessibility
-    const focus = this.add.graphics().setDepth(999)
-    const updateFocus = () => {
-      const w = widgets[sel]
-      const b = w.getBounds()
-      focus.clear(); focus.lineStyle(1,0xffff66,1); focus.strokeRect(b.x-3, b.y-3, b.width+6, b.height+6)
-    }
-    updateFocus()
+      const toggle = () => {
+        setVal(!getVal())
+        widget.setText(`${label}: ${getVal() ? 'ON' : 'OFF'}`)
+        this.game.events.emit('options-updated')
+      }
 
-    const close = () => { this.game.events.emit('pause-closed'); this.scene.stop(); this.scene.resume('Game') }
+      widget.on('pointerdown', toggle)
+      widget.on('pointerover', () => {
+        widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+      })
+      widget.on('pointerout', () => {
+        widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+      })
+
+      return { widget, toggle }
+    }
+
+    const screenShake = mkToggle(
+      'Screen Shake',
+      () => getOptions().screenShake,
+      (b) => setOptions({ screenShake: b }),
+      startY
+    )
+    this.toggles.push(screenShake)
+
+    const crtFilter = mkToggle(
+      'CRT Filter',
+      () => getOptions().crtFilter,
+      (b) => setOptions({ crtFilter: b }),
+      startY + gap
+    )
+    this.toggles.push(crtFilter)
+
+    const showFPS = mkToggle(
+      'Show FPS',
+      () => getOptions().showFPS,
+      (b) => setOptions({ showFPS: b }),
+      startY + gap * 2
+    )
+    this.toggles.push(showFPS)
+
+    // Volume control
+    const volumeWidget = this.add.text(
+      panelX,
+      startY + gap * 3,
+      `Volume: ${Math.round(getOptions().musicVolume * 100)}%`,
+      {
+        fontFamily: 'monospace',
+        fontSize: '72px',
+        color: '#ffffff',
+        backgroundColor: '#222244',
+        padding: { x: 72, y: 36 },
+      }
+    ).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
+
+    const updateVolume = (delta: number) => {
+      const o = getOptions()
+      const newMusic = Math.max(0, Math.min(1, o.musicVolume + delta))
+      const newSfx = Math.max(0, Math.min(1, o.sfxVolume + delta))
+      setOptions({ musicVolume: newMusic, sfxVolume: newSfx })
+      volumeWidget.setText(`Volume: ${Math.round(newMusic * 100)}%`)
+      this.game.events.emit('options-updated')
+    }
+
+    volumeWidget.on('pointerdown', () => updateVolume(0.1))
+    volumeWidget.on('pointerover', () => {
+      volumeWidget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+    })
+    volumeWidget.on('pointerout', () => {
+      volumeWidget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+    })
+
+    this.toggles.push({
+      widget: volumeWidget,
+      toggle: () => updateVolume(0.1),
+    })
+
+    // Close handler
+    const close = () => {
+      this.game.events.emit('pause-closed')
+      this.cleanup()
+      this.scene.stop()
+      this.scene.resume('Game')
+    }
+
+    // Keyboard close
     this.input.keyboard?.once('keydown-P', close)
     this.input.keyboard?.once('keydown-ESC', close)
-    attachGamepad(this, {
-      pause: close,
-      cancel: close,
-      up: () => { sel = (sel + widgets.length - 1) % widgets.length; highlight(); updateFocus() },
-      down: () => { sel = (sel + 1) % widgets.length; highlight(); updateFocus() },
-      left: () => { if (widgets[sel] === vol || widgets[sel] === volDown) decVol() },
-      right: () => { if (widgets[sel] === vol || widgets[sel] === volDown) incVol() },
-      confirm: () => {
-        if (widgets[sel] === wShake.node) wShake.toggle()
-        else if (widgets[sel] === wCrt.node) wCrt.toggle()
-        else if (widgets[sel] === wFps.node) wFps.toggle()
-        else if (widgets[sel] === vol) incVol()
-        else if (widgets[sel] === volDown) decVol()
+
+    // Click outside to close
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const panelBounds = new Phaser.Geom.Rectangle(
+        panelX - panelWidth / 2,
+        panelY - panelHeight / 2,
+        panelWidth,
+        panelHeight
+      )
+      if (!Phaser.Geom.Rectangle.Contains(panelBounds, pointer.x, pointer.y)) {
+        close()
+      }
+    })
+
+    // Setup navigation
+    const widgets = this.toggles.map((t) => t.widget)
+    const navigableItems: NavigableItem[] = widgets.map((widget, index) => ({
+      index,
+      onFocus: () => {
+        widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
       },
+      onBlur: () => {
+        widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+      },
+      onActivate: () => {
+        if (index < 3) {
+          this.toggles[index].toggle()
+        } else {
+          updateVolume(0.1)
+        }
+      },
+    }))
+
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns: 1,
+      onCancel: close,
     })
-    // Mobile tap-to-close anywhere outside panel
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (!panel.getBounds().contains(p.x, p.y)) close()
+
+    // Add custom left/right for volume
+    this.input.keyboard?.on('keydown-LEFT', () => {
+      const currentIndex = this.navigator?.getCurrentIndex() ?? 0
+      if (currentIndex === 3) {
+        updateVolume(-0.1)
+      }
     })
-    ensureMobileGamepadInit(this)
-    attachGamepadDebug(this)
+
+    this.input.keyboard?.on('keydown-RIGHT', () => {
+      const currentIndex = this.navigator?.getCurrentIndex() ?? 0
+      if (currentIndex === 3) {
+        updateVolume(0.1)
+      }
+    })
+  }
+
+  private cleanup() {
+    this.navigator?.destroy()
+    this.toggles = []
+  }
+
+  shutdown() {
+    this.cleanup()
   }
 }
-
-

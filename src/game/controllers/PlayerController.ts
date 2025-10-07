@@ -24,7 +24,7 @@ export class PlayerController {
   private lastMoveX = 0
   private lastMoveY = 0
   private lastAimDeg = 0
-  private joy: JoypadState = { active: false, pointerId: null, centerX: 0, centerY: 0, vecX: 0, vecY: 0, radius: 26 }
+  private joy: JoypadState = { active: false, pointerId: null, centerX: 0, centerY: 0, vecX: 0, vecY: 0, radius: 936 }
   private detachHandlers: Array<() => void> = []
 
   constructor(ctx: SceneContext) {
@@ -36,9 +36,9 @@ export class PlayerController {
     const centerY = this.ctx.scale.height / 2
     const sprite = this.ctx.physics.add.sprite(centerX, centerY, this.currentTextureKey)
     sprite.setCollideWorldBounds(false)
-    sprite.setScale(0.02734375) // 28px ship
+    sprite.setScale(0.1640625) // 28px ship * 6 = 168px ship
     sprite.setOrigin(0.5, 0.5)
-    sprite.body?.setSize(16, 16, true)
+    sprite.body?.setSize(96, 96, true)
     this.ctx.cameras.main.startFollow(sprite, true, 0.15, 0.15)
 
     this.player = sprite
@@ -136,8 +136,8 @@ export class PlayerController {
 
   handleResize(_width: number, height: number) {
     if (this.joy.base && this.joy.thumb) {
-      const x = 40
-      const y = height - 40
+      const x = 1440
+      const y = height - 1440
       this.joy.base.setPosition(x, y)
       this.joy.thumb.setPosition(x, y)
       this.joy.centerX = x
@@ -156,12 +156,12 @@ export class PlayerController {
     const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
     if (!isMobileDevice) return
     if (this.ctx.getOptions().showTouchJoystick === false) return
-    const x = 40
-    const y = this.ctx.scale.height - 40
+    const x = 1440
+    const y = this.ctx.scale.height - 1440
     this.joy.centerX = x
     this.joy.centerY = y
     this.joy.base = this.ctx.scene.add.circle(x, y, this.joy.radius, 0xffffff, 0.08).setScrollFactor(0).setDepth(999)
-    this.joy.thumb = this.ctx.scene.add.circle(x, y, 12, 0xffffff, 0.15).setScrollFactor(0).setDepth(1000)
+    this.joy.thumb = this.ctx.scene.add.circle(x, y, 432, 0xffffff, 0.15).setScrollFactor(0).setDepth(1000)
 
     const pointerDown = (p: Phaser.Input.Pointer) => {
       if (this.joy.active) return

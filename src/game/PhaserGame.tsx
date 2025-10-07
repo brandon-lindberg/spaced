@@ -27,8 +27,8 @@ export default function PhaserGame() {
       type: Phaser.AUTO,
       parent: containerRef.current,
       backgroundColor: GAME_BACKGROUND_COLOR,
-      pixelArt: true,
-      roundPixels: true,
+      pixelArt: false,
+      roundPixels: false,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -39,8 +39,8 @@ export default function PhaserGame() {
         parent: containerRef.current,
       },
       render: {
-        antialias: false,
-        pixelArt: true,
+        antialias: true,
+        pixelArt: false,
       },
       physics: {
         default: 'arcade',
