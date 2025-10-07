@@ -14,6 +14,11 @@ export default class PauseScene extends Phaser.Scene {
   }
 
   create() {
+    // Clear any previous state
+    this.toggles = []
+    this.navigator?.destroy()
+    this.navigator = undefined
+
     // Notify game that pause started
     this.game.events.emit('pause-opened')
 
@@ -82,10 +87,14 @@ export default class PauseScene extends Phaser.Scene {
 
       widget.on('pointerdown', toggle)
       widget.on('pointerover', () => {
-        widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+        if (widget && widget.active) {
+          widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+        }
       })
       widget.on('pointerout', () => {
-        widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+        if (widget && widget.active) {
+          widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+        }
       })
 
       return { widget, toggle }
@@ -181,10 +190,14 @@ export default class PauseScene extends Phaser.Scene {
     const navigableItems: NavigableItem[] = widgets.map((widget, index) => ({
       index,
       onFocus: () => {
-        widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+        if (widget && widget.active && typeof widget.setStyle === 'function') {
+          widget.setStyle({ backgroundColor: '#3355ff', color: '#ffffcc' })
+        }
       },
       onBlur: () => {
-        widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+        if (widget && widget.active && typeof widget.setStyle === 'function') {
+          widget.setStyle({ backgroundColor: '#222244', color: '#ffffff' })
+        }
       },
       onActivate: () => {
         if (index < 3) {

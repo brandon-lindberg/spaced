@@ -16,6 +16,11 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    // Clear any previous state
+    this.buttons = []
+    this.navigator?.destroy()
+    this.navigator = undefined
+
     // Generate icons
     IconGenerator.generateIcons(this)
 
