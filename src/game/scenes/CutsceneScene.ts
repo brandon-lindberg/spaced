@@ -6,13 +6,6 @@ export default class CutsceneScene extends Phaser.Scene {
     super('Cutscene')
   }
 
-  preload() {
-    const level = runState.state?.level ?? 1
-    if (level === 1) {
-      this.load.video('cutscene_level_one', 'assets/cutscenes/cutscene_level_one.MP4')
-    }
-  }
-
   create() {
     const { width, height } = this.scale
     this.add.rectangle(0, 0, width, height, 0x000000).setOrigin(0,0)
@@ -22,6 +15,17 @@ export default class CutsceneScene extends Phaser.Scene {
     if (level === 1) {
       const video = this.add.video(width / 2, height / 2, 'cutscene_level_one')
       video.setOrigin(0.5, 0.5)
+
+      // Scale video to fit screen while maintaining aspect ratio
+      const videoWidth = video.width
+      const videoHeight = video.height
+      if (videoWidth > 0 && videoHeight > 0) {
+        const scaleX = width / videoWidth
+        const scaleY = height / videoHeight
+        const scale = Math.min(scaleX, scaleY)
+        video.setScale(scale)
+      }
+
       video.play()
 
       const proceed = () => this.scene.start('Shop')

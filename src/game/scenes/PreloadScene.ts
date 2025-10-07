@@ -24,6 +24,8 @@ export default class PreloadScene extends Phaser.Scene {
     })
     // Load placeholder music from public/ so Netlify serves directly
     this.load.audio('bgm', 'audio/Nikkei.mp3')
+    // Load cutscene videos
+    this.load.video('cutscene_level_one', 'assets/cutscenes/cutscene_level_one.MP4')
     // Load player ship skin
     this.load.image('player-ship-1', 'assets/player/player_ship_1.png')
     this.load.image('player-ship-idle-1', 'assets/player/player_ship_idle_1.png')
