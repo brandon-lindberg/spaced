@@ -40,8 +40,9 @@ export class MenuCard {
     this.config = config
     this.isDisabled = config.disabled || false
 
-    this.baseColor = config.color || 0x222244
-    this.hoverColor = this.lightenColor(this.baseColor, 0.3)
+    // Use darker base background for better text contrast, accent color for borders
+    this.baseColor = 0x1a1a2e
+    this.hoverColor = config.color || 0x2d2d44
 
     this.container = this.scene.add.container(config.x, config.y)
     this.background = this.scene.add.graphics()
@@ -57,40 +58,41 @@ export class MenuCard {
     // Background with rounded corners and gradient effect
     this.drawBackground(this.baseColor)
 
-    // Icon (if provided)
-    const iconSize = 144
-    const iconX = 72
-    const iconY = height / 2
-    const contentStartX = icon ? iconX + iconSize + 48 : 72
+    // Icon (if provided) - centered at top of card with responsive size
+    const iconSize = Math.max(40, Math.min(80, height * 0.25))
+    const iconY = Math.max(30, height * 0.25)
 
     if (icon && this.scene.textures.exists(icon)) {
-      this.iconImage = this.scene.add.image(iconX + iconSize / 2, iconY, icon)
+      this.iconImage = this.scene.add.image(width / 2, iconY, icon)
         .setDisplaySize(iconSize, iconSize)
         .setOrigin(0.5)
       this.container.add(this.iconImage)
     }
 
-    // Title (centered both horizontally and vertically for better responsiveness)
-    // Scale font size based on card height for better mobile support
-    const titleFontSize = Math.max(12, Math.min(24, height * 0.2))
-    this.titleText = this.scene.add.text(width / 2, height / 2, title, {
+    // Title (centered below icon)
+    const titleFontSize = Math.max(12, Math.min(20, height * 0.11))
+    const titleY = icon ? iconY + iconSize / 2 + Math.max(15, height * 0.08) : height * 0.35
+    this.titleText = this.scene.add.text(width / 2, titleY, title, {
       fontFamily: 'monospace',
       fontSize: `${titleFontSize}px`,
       color: this.isDisabled ? '#888888' : '#ffffff',
       fontStyle: 'bold',
       wordWrap: { width: width * 0.9, useAdvancedWrap: true },
       align: 'center',
-    }).setOrigin(0.5)
+    }).setOrigin(0.5, 0)
     this.container.add(this.titleText)
 
-    // Description
+    // Description (responsive font size)
     if (description) {
-      this.descriptionText = this.scene.add.text(contentStartX, 168, description, {
+      const descFontSize = Math.max(10, Math.min(16, height * 0.08))
+      const descY = height * 0.65
+      this.descriptionText = this.scene.add.text(width / 2, descY, description, {
         fontFamily: 'monospace',
-        fontSize: '30px',
-        color: this.isDisabled ? '#666666' : '#cccccc',
-        wordWrap: { width: width - contentStartX - 72 },
-      })
+        fontSize: `${descFontSize}px`,
+        color: this.isDisabled ? '#666666' : '#e0e0e0',
+        wordWrap: { width: width * 0.85, useAdvancedWrap: true },
+        align: 'center',
+      }).setOrigin(0.5, 0)
       this.container.add(this.descriptionText)
     }
 
@@ -124,27 +126,33 @@ export class MenuCard {
     }
   }
 
-  private drawBackground(color: number, glowIntensity = 0) {
+  private drawBackground(_color: number, glowIntensity = 0) {
     const { width, height } = this.config
+    const accentColor = this.config.color || 0x2d2d44
+    const borderRadius = Math.min(48, height * 0.15)
+    const borderWidth = Math.max(3, Math.min(6, height * 0.02))
+
     this.background.clear()
 
     // Outer glow (when hovered)
     if (glowIntensity > 0) {
-      this.background.lineStyle(18, this.hoverColor, glowIntensity * 0.5)
-      this.background.strokeRoundedRect(-12, -12, width + 24, height + 24, 60)
+      const glowWidth = Math.max(6, Math.min(12, height * 0.04))
+      const glowRadius = Math.min(60, height * 0.19)
+      this.background.lineStyle(glowWidth, accentColor, glowIntensity * 0.6)
+      this.background.strokeRoundedRect(-glowWidth/2, -glowWidth/2, width + glowWidth, height + glowWidth, glowRadius)
     }
 
-    // Main card background
-    this.background.fillStyle(color, 1)
-    this.background.fillRoundedRect(0, 0, width, height, 48)
+    // Main card background (always dark for good contrast)
+    this.background.fillStyle(this.baseColor, 0.95)
+    this.background.fillRoundedRect(0, 0, width, height, borderRadius)
 
-    // Border
-    this.background.lineStyle(6, this.lightenColor(color, 0.2), 0.8)
-    this.background.strokeRoundedRect(0, 0, width, height, 48)
+    // Border using accent color for distinction
+    this.background.lineStyle(borderWidth, accentColor, 0.9)
+    this.background.strokeRoundedRect(0, 0, width, height, borderRadius)
 
     // Subtle gradient effect (top highlight)
-    this.background.fillStyle(0xffffff, 0.05)
-    this.background.fillRoundedRect(0, 0, width, height * 0.3, { tl: 48, tr: 48, bl: 0, br: 0 })
+    this.background.fillStyle(accentColor, 0.15)
+    this.background.fillRoundedRect(0, 0, width, height * 0.3, { tl: borderRadius, tr: borderRadius, bl: 0, br: 0 })
   }
 
   private setupInteractivity() {
@@ -198,7 +206,7 @@ export class MenuCard {
       })
 
       // Brighten text
-      this.titleText.setColor('#ffffcc')
+      this.titleText.setColor('#ffff66')
       if (this.descriptionText) this.descriptionText.setColor('#ffffff')
     } else {
       // Scale back to normal
@@ -223,7 +231,7 @@ export class MenuCard {
 
       // Restore text color
       this.titleText.setColor('#ffffff')
-      if (this.descriptionText) this.descriptionText.setColor('#cccccc')
+      if (this.descriptionText) this.descriptionText.setColor('#e0e0e0')
     }
   }
 
@@ -270,18 +278,6 @@ export class MenuCard {
         onComplete: () => particle.destroy(),
       })
     }
-  }
-
-  private lightenColor(color: number, amount: number): number {
-    const r = (color >> 16) & 0xff
-    const g = (color >> 8) & 0xff
-    const b = color & 0xff
-
-    const newR = Math.min(255, r + Math.floor(amount * 255))
-    const newG = Math.min(255, g + Math.floor(amount * 255))
-    const newB = Math.min(255, b + Math.floor(amount * 255))
-
-    return (newR << 16) | (newG << 8) | newB
   }
 
   setDisabled(disabled: boolean) {

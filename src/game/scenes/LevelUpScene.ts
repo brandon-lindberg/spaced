@@ -32,14 +32,14 @@ export default class LevelUpScene extends Phaser.Scene {
       .setDepth(1000)
 
     // Title with glow effect (responsive)
-    const titleFontSize = Math.min(144, width * 0.075)
-    this.title = this.add.text(width / 2, height / 2 - height * 0.44, '⬆️ LEVEL UP!', {
+    const titleFontSize = Math.max(24, Math.min(72, width * 0.0625))
+    this.title = this.add.text(width / 2, height / 2 - height * 0.38, '⬆️ LEVEL UP!', {
       fontFamily: 'monospace',
       fontSize: `${titleFontSize}px`,
       color: '#ffff66',
       fontStyle: 'bold',
       stroke: '#ff6600',
-      strokeThickness: Math.max(9, titleFontSize * 0.125),
+      strokeThickness: Math.max(4, titleFontSize * 0.08),
     }).setOrigin(0.5).setDepth(1010)
 
     // Pulse animation for title
@@ -68,15 +68,15 @@ export default class LevelUpScene extends Phaser.Scene {
         ]
 
     // Create choice cards in a grid (responsive)
-    const cardWidth = Math.min(960, width * 0.25)
-    const cardHeight = Math.min(600, height * 0.5)
-    const gap = Math.min(72, width * 0.0375)
+    const cardWidth = Math.max(200, Math.min(400, width * 0.28))
+    const cardHeight = Math.max(180, Math.min(320, height * 0.42))
+    const gap = Math.max(15, Math.min(30, width * 0.02))
     const columns = Math.min(3, visibleChoices.length)
     const rows = Math.ceil(visibleChoices.length / columns)
     const gridWidth = columns * cardWidth + (columns - 1) * gap
     const gridHeight = rows * cardHeight + (rows - 1) * gap
     const startX = (width - gridWidth) / 2
-    const startY = (height - gridHeight) / 2 + height * 0.1
+    const startY = (height - gridHeight) / 2 + Math.max(30, height * 0.06)
 
     visibleChoices.forEach((c, i) => {
       const col = i % columns
