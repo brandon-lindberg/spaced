@@ -28,6 +28,7 @@ export default class HUDScene extends Phaser.Scene {
     const fontSize = Math.max(14, Math.min(24, width * 0.0125))
     const spacing = Math.max(20, Math.min(30, height * 0.028))
     const padding = Math.max(10, Math.min(15, width * 0.008))
+    const topMargin = Math.max(15, Math.min(25, height * 0.023))
 
     // Minimal icon set
     const ensureIcon = (key: string, draw: (g: Phaser.GameObjects.Graphics) => void) => {
@@ -46,25 +47,25 @@ export default class HUDScene extends Phaser.Scene {
     const iconX = padding
     const textX = padding + iconSize + 5
 
-    this.add.image(iconX, padding, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.hpText = this.add.text(textX, padding - fontSize/2, '0/0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdddd' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.hpText = this.add.text(textX, topMargin - fontSize/2, '0/0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdddd' }).setScrollFactor(0).setDepth(1500)
 
-    this.add.image(iconX, padding + spacing, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.goldText = this.add.text(textX, padding + spacing - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdd66' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin + spacing, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.goldText = this.add.text(textX, topMargin + spacing - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdd66' }).setScrollFactor(0).setDepth(1500)
 
-    this.add.image(iconX, padding + spacing * 2, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.xpText = this.add.text(textX, padding + spacing * 2 - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin + spacing * 2, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.xpText = this.add.text(textX, topMargin + spacing * 2 - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
 
     const lvlX = Math.max(100, Math.min(120, width * 0.0625))
-    this.lvlText = this.add.text(lvlX, padding - fontSize/2, 'Lv 1', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
+    this.lvlText = this.add.text(lvlX, topMargin - fontSize/2, 'Lv 1', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
     const timerIconX = width - Math.max(100, Math.min(120, width * 0.0625))
     const timerTextX = width - Math.max(70, Math.min(84, width * 0.044))
-    this.add.image(timerIconX, padding, 'icon-timer').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.timeText = this.add.text(timerTextX, padding - fontSize/2, '00:00', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(timerIconX, topMargin, 'icon-timer').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.timeText = this.add.text(timerTextX, topMargin - fontSize/2, '00:00', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(1500)
-    this.bossLabel = this.add.text(width / 2, Math.max(30, spacing + padding), '', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500)
+    this.bossLabel = this.add.text(width / 2, Math.max(30, spacing + topMargin), '', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500)
 
     // Simple icons for weapons/accessories with level pips (responsive)
     const iconLayer = this.add.layer().setDepth(1499)

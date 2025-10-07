@@ -294,7 +294,7 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-P', openPause)
     attachGamepad(this, { pause: openPause })
 
-    // Mobile pause button overlay (top-right)
+    // Mobile pause button overlay (bottom-right)
     const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
     if (isMobile) {
       const btnSize = Math.max(30, Math.min(50, this.scale.width * 0.06))
@@ -302,7 +302,7 @@ export default class GameScene extends Phaser.Scene {
       const btnMargin = Math.max(10, Math.min(20, this.scale.width * 0.015))
 
       const place = (t: Phaser.GameObjects.Text) => {
-        t.setPosition(this.scale.width - btnMargin, btnMargin)
+        t.setPosition(this.scale.width - btnMargin, this.scale.height - btnMargin)
       }
       const btn = this.add.text(0, 0, 'II', {
         fontFamily:'monospace',
@@ -310,7 +310,7 @@ export default class GameScene extends Phaser.Scene {
         color:'#ffffff',
         backgroundColor:'#111144',
         padding: btnPadding
-      }).setOrigin(1, 0).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
+      }).setOrigin(1, 1).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
       place(btn)
       btn.on('pointerdown', openPause)
       this.scale.on('resize', () => place(btn))
