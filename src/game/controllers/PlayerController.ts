@@ -80,7 +80,7 @@ export class PlayerController {
     const len = Math.hypot(vx, vy) || 1
     this.lastMoveX = vx / len
     this.lastMoveY = vy / len
-    this.player.setVelocity(this.lastMoveX * speed, this.lastMoveY * speed)
+    this.player.setVelocity(this.lastMoveX * speed * 6, this.lastMoveY * speed * 6)
 
     const isMoving = Math.hypot(this.lastMoveX, this.lastMoveY) > 0.1
     this.updateTexture(isMoving)

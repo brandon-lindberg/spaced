@@ -605,7 +605,7 @@ export default class GameScene extends Phaser.Scene {
         // Home in on locked target
         if (target && target.active) {
           const dx = target.x - b.x, dy = target.y - b.y
-          const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || 140
+          const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || (140 * 6)
           const ang = Math.atan2(dy, dx)
           b.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp)
           // Update rotation to face new direction
@@ -651,7 +651,7 @@ export default class GameScene extends Phaser.Scene {
           shot.setCircle(6, 0, 0)
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
-          shot.setVelocity(Math.cos(vrad) * vs, Math.sin(vrad) * vs)
+          shot.setVelocity(Math.cos(vrad) * vs * 6, Math.sin(vrad) * vs * 6)
           ;(shot as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.0))
 
           // Cancel any existing timer from previous use
@@ -718,7 +718,7 @@ export default class GameScene extends Phaser.Scene {
     delete (b as any).orb
     const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
-    b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    b.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite to face direction (top of sprite = front)
     b.setRotation(rad + Math.PI / 2)  // +90 degrees because sprite's top faces up by default
     ;(b as any).damage = this.stats.bulletDamage
@@ -767,7 +767,7 @@ export default class GameScene extends Phaser.Scene {
     }
     const speed = 160
     const rad = Phaser.Math.DegToRad(angleDeg)
-    m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    m.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite to face direction (top of sprite = front)
     m.setRotation(rad + Math.PI / 2)
     ;(m as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.5))
@@ -826,7 +826,7 @@ export default class GameScene extends Phaser.Scene {
     }
     const speed = 110
     const rad = Phaser.Math.DegToRad(angleDeg)
-    o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    o.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     ;(o as any).damage = this.stats.bulletDamage
     ;(o as any).orb = true
     ;(o as any).exploded = false
@@ -987,7 +987,7 @@ export default class GameScene extends Phaser.Scene {
     const dyp = this.player.y - enemy.y
     const ang = Math.atan2(dyp, dxp)
     const kb = 140
-    this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
+    this.player.setVelocity(Math.cos(ang) * kb * 6, Math.sin(ang) * kb * 6)
     // Flash
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 4 })
     // Subtle screen shake on hit if enabled
@@ -995,7 +995,7 @@ export default class GameScene extends Phaser.Scene {
     // Brief enemy knockback and stun
     const kbe = 90
     if (enemy && (enemy as any).setVelocity) {
-      enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
+      enemy.setVelocity(Math.cos(ang + Math.PI) * kbe * 6, Math.sin(ang + Math.PI) * kbe * 6)
     }
     ;(enemy as any).stunUntil = this.time.now + 200
     if (result.died) {
@@ -1020,7 +1020,7 @@ export default class GameScene extends Phaser.Scene {
     const dyp = this.player.y - py
     const ang = Math.atan2(dyp, dxp)
     const kb = 120
-    this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
+    this.player.setVelocity(Math.cos(ang) * kb * 6, Math.sin(ang) * kb * 6)
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
     if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
     if (result.died) {
@@ -1108,7 +1108,7 @@ export default class GameScene extends Phaser.Scene {
     b.body.enable = true
     const speed = 120
     const rad = Phaser.Math.DegToRad(angleDeg)
-    b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    b.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite so left side (front) faces direction of movement
     b.setRotation(rad + Math.PI)
     ;(b as any).damage = 1
@@ -1184,7 +1184,7 @@ export default class GameScene extends Phaser.Scene {
         this.stats.hpMax = result.hpMax
         audio.sfxHurt()
         const ang = Math.atan2(this.player!.y - src.y, this.player!.x - src.x)
-        this.player!.setVelocity(Math.cos(ang) * 120, Math.sin(ang) * 120)
+        this.player!.setVelocity(Math.cos(ang) * 120 * 6, Math.sin(ang) * 120 * 6)
         if (result.died) {
           audio.stopMusic()
           this.scene.stop('HUD')

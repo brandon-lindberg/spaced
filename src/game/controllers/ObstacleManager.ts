@@ -131,7 +131,7 @@ export class ObstacleManager {
     ;(asteroid as any).damageCooldownUntil = 0
     const toCenter = Math.atan2(cy - y, cx - x)
     const speed = Phaser.Math.Between(12, 28)
-    asteroid.setVelocity(Math.cos(toCenter) * speed, Math.sin(toCenter) * speed)
+    asteroid.setVelocity(Math.cos(toCenter) * speed * 6, Math.sin(toCenter) * speed * 6)
     asteroid.setAngularVelocity(Phaser.Math.Between(-40, 40))
   }
 }

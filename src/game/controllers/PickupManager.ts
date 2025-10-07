@@ -163,7 +163,7 @@ export class PickupManager {
           const pull = 80
           const nx = dx / (d || 1)
           const ny = dy / (d || 1)
-          obj.body && (obj.body as Phaser.Physics.Arcade.Body).setVelocity(-nx * pull, -ny * pull)
+          obj.body && (obj.body as Phaser.Physics.Arcade.Body).setVelocity(-nx * pull * 6, -ny * pull * 6)
         }
       }
     }

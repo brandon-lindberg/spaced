@@ -247,7 +247,7 @@ export class BossManager {
         this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 840, boss.y + Math.sin(ang) * 840, tele[idx])
         this.scene.time.delayedCall(tele[idx], () => {
           if (!boss.active) return
-          boss.setVelocity(Math.cos(ang) * spd[idx], Math.sin(ang) * spd[idx])
+          boss.setVelocity(Math.cos(ang) * spd[idx] * 6, Math.sin(ang) * spd[idx] * 6)
           this.scene.time.delayedCall(dur[idx], () => boss.active && boss.setVelocity(0, 0))
         })
       }}))
@@ -300,7 +300,7 @@ export class BossManager {
         if (!boss.active) return
         const ang = aimToPlayer()
         this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 900, boss.y + Math.sin(ang) * 900, 320)
-        this.scene.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185, Math.sin(ang) * 185))
+        this.scene.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185 * 6, Math.sin(ang) * 185 * 6))
         this.scene.time.delayedCall(670, () => boss.active && boss.setVelocity(0, 0))
       }}))
       return
@@ -339,7 +339,7 @@ export class BossManager {
       if (!boss.active) return
       const ang = aimToPlayer()
       this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 960, boss.y + Math.sin(ang) * 960, 260)
-      this.scene.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200, Math.sin(ang) * 200))
+      this.scene.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200 * 6, Math.sin(ang) * 200 * 6))
       this.scene.time.delayedCall(600, () => boss.active && boss.setVelocity(0, 0))
     }}))
   }

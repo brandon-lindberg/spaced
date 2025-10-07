@@ -214,7 +214,7 @@ export class EnemyManager {
       const dx = player.x - enemy.x
       const dy = player.y - enemy.y
       const len = Math.hypot(dx, dy) || 1
-      enemy.setVelocity((dx / len) * chaseSpeed, (dy / len) * chaseSpeed)
+      enemy.setVelocity((dx / len) * chaseSpeed * 6, (dy / len) * chaseSpeed * 6)
       if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder' || enemy.texture.key === 'enemy-tank')) {
         const moveX = dx / len
         const moveY = dy / len
