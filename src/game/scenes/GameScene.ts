@@ -637,8 +637,8 @@ export default class GameScene extends Phaser.Scene {
         const rad = Phaser.Math.DegToRad(a)
         const ox = this.player.x + Math.cos(rad) * 84
         const oy = this.player.y + Math.sin(rad) * 84
-        const len = hasBeamLaser ? 840 : 630
-        const thickness = (hasBeamLaser ? 36 : 24) + (lvl - 1) * (hasBeamLaser ? 12 : 9)
+        const len = hasBeamLaser ? 200 : 150  // Scaled down from 840/630
+        const thickness = (hasBeamLaser ? 8 : 6) + (lvl - 1) * (hasBeamLaser ? 3 : 2)  // Scaled down from 36/24
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
@@ -869,7 +869,7 @@ export default class GameScene extends Phaser.Scene {
     const rad = Phaser.Math.DegToRad(angleDeg)
     const dirx = Math.cos(rad)
     const diry = Math.sin(rad)
-    thickness = Math.max(24, thickness)
+    thickness = Math.max(6, thickness)  // Scaled down from 24
     // Draw corridor for the beam hitbox (always visible briefly)
     const g = this.add.graphics().setDepth(999)
     g.fillStyle(0x00ffff, 0.15)

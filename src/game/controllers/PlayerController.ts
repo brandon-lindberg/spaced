@@ -38,7 +38,7 @@ export class PlayerController {
     sprite.setCollideWorldBounds(false)
     sprite.setScale(0.1640625) // 28px ship * 6 = 168px ship
     sprite.setOrigin(0.5, 0.5)
-    sprite.body?.setSize(96, 96, true)
+    sprite.body?.setSize(60, 60, true)
     this.ctx.cameras.main.startFollow(sprite, true, 0.15, 0.15)
 
     this.player = sprite

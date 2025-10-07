@@ -86,6 +86,10 @@ export class PickupManager {
     if (customColor !== undefined) {
       xp.setTint(customColor)
     }
+    // Set circular collision body - use radius 15 for 21px sprite (slightly larger for easier pickup)
+    if (xp.body) {
+      (xp.body as Phaser.Physics.Arcade.Body).setCircle(15)
+    }
     if (elite) {
       this.scene.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
     }
@@ -100,6 +104,10 @@ export class PickupManager {
     const baseScale = elite ? 2.625 : 3.5
     gold.setScale(baseScale)
     gold.setData('kind', 'gold')
+    // Set circular collision body - use radius 15 for 21px sprite (slightly larger for easier pickup)
+    if (gold.body) {
+      (gold.body as Phaser.Physics.Arcade.Body).setCircle(15)
+    }
     if (elite) {
       this.scene.tweens.add({ targets: gold, scale: { from: baseScale, to: baseScale * 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
     }
@@ -120,6 +128,10 @@ export class PickupManager {
     // Scale health packs to 28px (texture is 7px, so scale to 4x = 28px)
     const baseScale = 4
     health.setScale(baseScale)
+    // Set circular collision body - use radius 18 for 28px sprite (slightly larger for easier pickup)
+    if (health.body) {
+      (health.body as Phaser.Physics.Arcade.Body).setCircle(18)
+    }
     this.scene.tweens.add({ targets: health, scale: baseScale * 1.15, yoyo: true, duration: 500, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
@@ -130,6 +142,10 @@ export class PickupManager {
     p.setTint(0x22ddaa)
     // Scale powerup chips to 28px (texture is 8px, so scale to 3.5x = 28px)
     p.setScale(3.5)
+    // Set circular collision body - use radius 18 for 28px sprite (slightly larger for easier pickup)
+    if (p.body) {
+      (p.body as Phaser.Physics.Arcade.Body).setCircle(18)
+    }
     this.scene.tweens.add({ targets: p, y: p.y - 12, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
     this.scene.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })
   }
