@@ -48,11 +48,11 @@ export default class PreloadScene extends Phaser.Scene {
       if (this.textures.exists(key)) return
       const g = this.add.graphics(); draw(g); g.generateTexture(key,w,h); g.destroy()
     }
-    // HUD icons
-    makeIcon('icon-heart', (g)=>{ g.fillStyle(0xff5566,1); g.fillCircle(108,144,108); g.fillCircle(252,144,108); g.fillTriangle(36,180,324,180,180,360)}, 360,360)
-    makeIcon('icon-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(180,180,144)}, 360,360)
-    makeIcon('icon-xp', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(180,0,360,180,0,180); g.fillTriangle(0,180,360,180,180,360)}, 360,360)
-    makeIcon('icon-timer', (g)=>{ g.lineStyle(72,0xffffff,1); g.strokeCircle(180,180,144); g.lineBetween(180,180,180,72); g.lineBetween(180,180,288,180)}, 360,360)
+    // HUD icons (all sized at 30x30 to match HUD requirements)
+    makeIcon('icon-heart', (g)=>{ g.fillStyle(0xff5566,1); g.fillCircle(9,12,9); g.fillCircle(21,12,9); g.fillTriangle(3,15,27,15,15,30)}, 30,30)
+    makeIcon('icon-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(15,15,12)}, 30,30)
+    makeIcon('icon-xp', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(15,0,30,15,0,15); g.fillTriangle(0,15,30,15,15,30)}, 30,30)
+    makeIcon('icon-timer', (g)=>{ g.lineStyle(6,0xffffff,1); g.strokeCircle(15,15,12); g.lineBetween(15,15,15,6); g.lineBetween(15,15,24,15)}, 30,30)
     // Load weapon icons
     this.load.image('icon-weapon', 'assets/icons/blaster_icon.png')
     this.load.image('icon-weapon-laser', 'assets/icons/laser_icon_one.png')
@@ -76,33 +76,32 @@ export default class PreloadScene extends Phaser.Scene {
     makeIcon('explosion-tex', (g)=>{ g.fillStyle(0xffaa55,1); g.fillCircle(576,576,576)}, 1152,1152)
     makeRect('enemy-square',288,288,0xff4444)
     makeRect('player-square',288,288,0xffffff)
-    makeIcon('xp-gem', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(108,0,216,108,0,108); g.fillTriangle(0,108,216,108,108,216)}, 216,216)
-    makeIcon('gold-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(108,108,108)}, 216,216)
+    // Pickup textures - these are just fallbacks, real ones generated in TextureFactory at smaller sizes
+    makeIcon('xp-gem', (g)=>{ g.fillStyle(0x66ccff,1); g.fillTriangle(3,0,6,3,0,3); g.fillTriangle(0,3,6,3,3,6)}, 6,6)
+    makeIcon('gold-coin', (g)=>{ g.fillStyle(0xffcc33,1); g.fillCircle(3,3,3)}, 6,6)
     // Distinct health: red background with white cross
     makeIcon('health-pack', (g)=>{
       g.clear()
       // red background
       g.fillStyle(0xff3344,1)
-      g.fillRect(0,0,252,252)
+      g.fillRect(0,0,7,7)
       // white cross
       g.fillStyle(0xffffff,1)
-      g.fillRect(108,36,36,180)
-      g.fillRect(36,108,180,36)
-    }, 252,252)
+      g.fillRect(3,1,1,5)
+      g.fillRect(1,3,5,1)
+    }, 7,7)
     // Distinct power-up: neon chip with legs and center glyph
     makeIcon('powerup-chip', (g)=>{
       g.clear()
       // body
-      g.fillStyle(0x14443a,1); g.fillRect(36,36,216,216)
-      // legs
+      g.fillStyle(0x14443a,1); g.fillRect(1,1,6,6)
+      // legs (simplified at small size)
       g.fillStyle(0x22ddaa,1)
-      g.fillRect(0,72,36,36); g.fillRect(0,144,36,36); g.fillRect(252,72,36,36); g.fillRect(252,144,36,36)
-      g.fillRect(72,0,36,36); g.fillRect(144,0,36,36); g.fillRect(72,252,36,36); g.fillRect(144,252,36,36)
+      g.fillRect(0,2,1,1); g.fillRect(0,4,1,1); g.fillRect(7,2,1,1); g.fillRect(7,4,1,1)
+      g.fillRect(2,0,1,1); g.fillRect(4,0,1,1); g.fillRect(2,7,1,1); g.fillRect(4,7,1,1)
       // center glyph
-      g.fillRect(72,108,108,36); g.fillRect(108,72,36,108)
-      // outline glow hint
-      g.lineStyle(36,0x22ddaa,1); g.strokeRect(54,54,180,180)
-    }, 288,288)
+      g.fillRect(2,3,3,1); g.fillRect(3,2,1,3)
+    }, 8,8)
   }
 
   create() {

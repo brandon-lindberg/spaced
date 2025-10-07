@@ -730,7 +730,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (import.meta.env.DEV) {
-      const dbg = this.add.rectangle(x, y, 72, 72, 0x00ff00, 0.6).setDepth(1000)
+      // Reduced debug rectangle from 72x72 to 12x12
+      const dbg = this.add.rectangle(x, y, 12, 12, 0x00ff00, 0.6).setDepth(1000)
       this.tweens.add({ targets: dbg, alpha: 0, duration: 400, onComplete: () => dbg.destroy() })
     }
     // Auto-disable after 2s to avoid endless bullets
@@ -895,7 +896,8 @@ export default class GameScene extends Phaser.Scene {
       const dy = e.y - py
       if (dx * dx + dy * dy <= thickness * thickness) {
         this.showHitSpark(e.x, e.y)
-        const marker = this.add.rectangle(e.x, e.y, 108, 108, 0x00ffff, 0.9).setDepth(1000)
+        // Reduced beam damage marker from 108x108 to 12x12
+        const marker = this.add.rectangle(e.x, e.y, 12, 12, 0x00ffff, 0.9).setDepth(1000)
         this.tweens.add({ targets: marker, alpha: 0, duration: 250, onComplete: () => marker.destroy() })
         this.enemyManager?.applyDamage(e, Math.max(1, Math.floor(dmg)))
       }
@@ -906,9 +908,9 @@ export default class GameScene extends Phaser.Scene {
     // Use new explosion sprites for missiles/orbs
     if (this.textures.exists('explosion-small') && this.textures.exists('explosion-medium')) {
       if (hitEnemy) {
-        // Enemy hit: animate from small to medium
+        // Enemy hit: animate from small to medium (scaled down to ~200px-400px from 1152-2304px)
         const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
-        ex.setDisplaySize(1152, 1152)
+        ex.setDisplaySize(200, 200)
         this.tweens.add({
           targets: ex,
           alpha: 0,
@@ -918,15 +920,15 @@ export default class GameScene extends Phaser.Scene {
             if (progress > 0.3 && ex.texture.key === 'explosion-small') {
               ex.setTexture('explosion-medium')
             }
-            const size = 1152 + (1152 * progress) // 1152px to 2304px
+            const size = 200 + (200 * progress) // 200px to 400px
             ex.setDisplaySize(size, size)
           },
           onComplete: () => ex.destroy()
         })
       } else {
-        // Regular explosion: just show small
+        // Regular explosion: just show small (scaled down to 200px from 1152px)
         const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
-        ex.setDisplaySize(1152, 1152)
+        ex.setDisplaySize(200, 200)
         this.tweens.add({ targets: ex, alpha: 0, duration: 220, onComplete: () => ex.destroy() })
       }
     } else {
@@ -941,7 +943,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private showHitSpark(x: number, y: number) {
-    const s = this.add.rectangle(x, y, 108, 108, 0xffffff, 1).setDepth(900)
+    // Reduced size from 108x108 to 12x12 for much smaller hit sparks
+    const s = this.add.rectangle(x, y, 12, 12, 0xffffff, 1).setDepth(900)
     this.tweens.add({ targets: s, alpha: 0, duration: 120, onComplete: () => s.destroy() })
   }
 
@@ -1140,13 +1143,13 @@ export default class GameScene extends Phaser.Scene {
           trailPoints.pop()
         }
 
-        // Draw trail
+        // Draw trail - reduced width from 18 to 6 for much smaller trail
         trail.clear()
         for (let i = 0; i < trailPoints.length - 1; i++) {
           const p1 = trailPoints[i]
           const p2 = trailPoints[i + 1]
           const alpha = 0.6 * (1 - i / maxTrailLength)
-          const width = 18 * (1 - i / maxTrailLength)
+          const width = 6 * (1 - i / maxTrailLength)
           trail.lineStyle(width, 0x9944ff, alpha)
           trail.lineBetween(p1.x, p1.y, p2.x, p2.y)
         }

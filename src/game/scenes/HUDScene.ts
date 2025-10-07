@@ -45,7 +45,7 @@ export default class HUDScene extends Phaser.Scene {
     this.xpText = this.add.text(30, 66, '0', { fontFamily: 'monospace', fontSize: '24px', color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
     this.lvlText = this.add.text(120, 6, 'Lv 1', { fontFamily: 'monospace', fontSize: '24px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
-    this.add.image(this.scale.width - 120, 15, 'icon-timer').setOrigin(0, 0).setScrollFactor(0).setDepth(1500)
+    this.add.image(this.scale.width - 120, 15, 'icon-timer').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
     this.timeText = this.add.text(this.scale.width - 84, 6, '00:00', { fontFamily: 'monospace', fontSize: '24px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(1500)
