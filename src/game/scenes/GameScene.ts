@@ -294,11 +294,23 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-P', openPause)
     attachGamepad(this, { pause: openPause })
 
-    // Mobile pause button overlay (top-right)
+    // Mobile pause button overlay (bottom-right)
     const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
     if (isMobile) {
-      const place = (t: Phaser.GameObjects.Text) => t.setPosition(this.scale.width - 10, this.scale.height - 26)
-      const btn = this.add.text(0, 0, 'II', { fontFamily:'monospace', fontSize:'12px', color:'#ffffff', backgroundColor:'#111144', padding:{ x:4, y:2 } }).setOrigin(1,0).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
+      const btnSize = Math.max(30, Math.min(50, this.scale.width * 0.06))
+      const btnPadding = { x: Math.max(8, btnSize * 0.25), y: Math.max(4, btnSize * 0.12) }
+      const btnMargin = Math.max(10, Math.min(20, this.scale.width * 0.015))
+
+      const place = (t: Phaser.GameObjects.Text) => {
+        t.setPosition(this.scale.width - btnMargin, this.scale.height - btnMargin)
+      }
+      const btn = this.add.text(0, 0, 'II', {
+        fontFamily:'monospace',
+        fontSize:`${btnSize}px`,
+        color:'#ffffff',
+        backgroundColor:'#111144',
+        padding: btnPadding
+      }).setOrigin(1, 1).setScrollFactor(0).setDepth(2000).setInteractive({ useHandCursor:true })
       place(btn)
       btn.on('pointerdown', openPause)
       this.scale.on('resize', () => place(btn))
@@ -373,7 +385,7 @@ export default class GameScene extends Phaser.Scene {
   private ensureBulletAssets() {
     // Physics groups are now created in create() method, only ensure textures exist here
     if (!this.textures.exists(this.bulletTextureKey)) {
-      const size = 2
+      const size = 72
       const gfx = this.add.graphics()
       gfx.fillStyle(0x88ff88, 1)
       gfx.fillRect(0, 0, size, size)
@@ -383,32 +395,32 @@ export default class GameScene extends Phaser.Scene {
     if (!this.textures.exists('missile-tex')) {
       const g = this.add.graphics()
       g.fillStyle(0xffaa33, 1)
-      g.fillRect(0, 0, 3, 5)
-      g.generateTexture('missile-tex', 3, 5)
+      g.fillRect(0, 0, 108, 180)
+      g.generateTexture('missile-tex', 108, 180)
       g.destroy()
     }
     if (!this.textures.exists('orb-tex')) {
       const g = this.add.graphics()
       g.fillStyle(0x66ccff, 1)
-      g.fillCircle(4, 4, 4)
-      g.generateTexture('orb-tex', 8, 8)
+      g.fillCircle(144, 144, 144)
+      g.generateTexture('orb-tex', 288, 288)
       g.destroy()
     }
     if (!this.textures.exists('beam-tex')) {
       const g = this.add.graphics()
       g.fillStyle(0xff66ff, 1)
-      g.fillRect(0, 0, 8, 2)
-      g.generateTexture('beam-tex', 8, 2)
+      g.fillRect(0, 0, 288, 72)
+      g.generateTexture('beam-tex', 288, 72)
       g.destroy()
     }
     if (!this.textures.exists('blaster-tex')) {
-      const g = this.add.graphics(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,3,3); g.generateTexture('blaster-tex',3,3); g.destroy()
+      const g = this.add.graphics(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,108,108); g.generateTexture('blaster-tex',108,108); g.destroy()
     }
     if (!this.textures.exists('laser-shot-tex')) {
-      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,2,2); g.generateTexture('laser-shot-tex',2,2); g.destroy()
+      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,72,72); g.generateTexture('laser-shot-tex',72,72); g.destroy()
     }
     if (!this.textures.exists('explosion-tex')) {
-      const s = 32
+      const s = 1152
       const can = this.textures.createCanvas('explosion-tex', s, s)
       const ctx = can?.getContext()
       if (ctx && can) {
@@ -446,7 +458,7 @@ export default class GameScene extends Phaser.Scene {
         fire()
       }
     }
-    const muzzle = 6
+    const muzzle = 36
     // Blaster family
     if (hasBlaster) {
       step('blaster', fireRate, () => {
@@ -459,7 +471,7 @@ export default class GameScene extends Phaser.Scene {
         // Always fire at least 1 inline shot, plus extras from weapon levels
         const inlineShots = inlineCount + 1  // Always at least 1, plus extras from weapon upgrades
         for (let i = 0; i < inlineShots; i++) {
-          const back = i * 8
+          const back = i * 48
           const speedScale = 1 - Math.min(0.6, i * 0.12)
           const ox = this.player!.x + Math.cos(baseRad) * (muzzle - back)
           const oy = this.player!.y + Math.sin(baseRad) * (muzzle - back)
@@ -575,7 +587,7 @@ export default class GameScene extends Phaser.Scene {
       step('orbs', fireRate, () => {
         const a = this.playerController?.getAimAngle(this.enemies) ?? 0
         const rad = Phaser.Math.DegToRad(a)
-        const muzzleOrb = 12
+        const muzzleOrb = 72
         const ox = this.player!.x + Math.cos(rad) * muzzleOrb
         const oy = this.player!.y + Math.sin(rad) * muzzleOrb
         this.time.delayedCall(120, () => {
@@ -587,7 +599,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // Despawn far bullets
     const cam = this.cameras.main
-    const bounds = new Phaser.Geom.Rectangle(cam.scrollX - 40, cam.scrollY - 40, cam.width + 80, cam.height + 80)
+    const bounds = new Phaser.Geom.Rectangle(cam.scrollX - 1440, cam.scrollY - 1440, cam.width + 2880, cam.height + 2880)
     const arrB = this.safeGroupChildren(this.bullets) as Phaser.Physics.Arcade.Sprite[]
     const arrM = this.safeGroupChildren(this.missileGroup) as Phaser.Physics.Arcade.Sprite[]
     const arrO = this.safeGroupChildren(this.orbGroup) as Phaser.Physics.Arcade.Sprite[]
@@ -598,14 +610,14 @@ export default class GameScene extends Phaser.Scene {
         const target = (b as any).missileTarget
         // If target is destroyed or inactive, explode the missile
         if (target && (!target.active || target.body === null)) {
-          this.showExplosion(b.x, b.y, 20, false)
+          this.showExplosion(b.x, b.y, 120, false)
           b.disableBody(true, true)
           continue
         }
         // Home in on locked target
         if (target && target.active) {
           const dx = target.x - b.x, dy = target.y - b.y
-          const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || 140
+          const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y) || (140 * 6)
           const ang = Math.atan2(dy, dx)
           b.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp)
           // Update rotation to face new direction
@@ -635,10 +647,10 @@ export default class GameScene extends Phaser.Scene {
         this.laserBeamAccum -= 1 / Math.max(0.1, rate)
         const a = this.laserAngle
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * 14
-        const oy = this.player.y + Math.sin(rad) * 14
-        const len = hasBeamLaser ? 140 : 105
-        const thickness = (hasBeamLaser ? 6 : 4) + (lvl - 1) * (hasBeamLaser ? 2 : 1.5)
+        const ox = this.player.x + Math.cos(rad) * 84
+        const oy = this.player.y + Math.sin(rad) * 84
+        const len = hasBeamLaser ? 200 : 150  // Scaled down from 840/630
+        const thickness = (hasBeamLaser ? 8 : 6) + (lvl - 1) * (hasBeamLaser ? 3 : 2)  // Scaled down from 36/24
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
@@ -647,11 +659,11 @@ export default class GameScene extends Phaser.Scene {
           shot.setActive(true).setVisible(true)
           shot.enableBody(true, ox, oy, true, true)
           shot.setDepth(5)
-          shot.body?.setSize(2, 2, true)
-          shot.setCircle(1, 0, 0)
+          shot.body?.setSize(12, 12, true)
+          shot.setCircle(6, 0, 0)
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
-          shot.setVelocity(Math.cos(vrad) * vs, Math.sin(vrad) * vs)
+          shot.setVelocity(Math.cos(vrad) * vs * 6, Math.sin(vrad) * vs * 6)
           ;(shot as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.0))
 
           // Cancel any existing timer from previous use
@@ -682,7 +694,7 @@ export default class GameScene extends Phaser.Scene {
     b.setDepth(5)
     // Set display size and origin FIRST
     if (tex === 'blaster-projectile') {
-      b.setDisplaySize(16, 16)
+      b.setDisplaySize(96, 96)
       b.setOrigin(0.5, 0.5)  // Ensure centered origin
     } else {
       b.setOrigin(0.5, 0.5)
@@ -695,20 +707,20 @@ export default class GameScene extends Phaser.Scene {
     }
     if (tex === 'blaster-projectile') {
       // Body size is affected by sprite scale, so we need to compensate
-      // Texture is 1024x1024 scaled to 16x16 = scale of 0.015625
-      // To get a 12px body, we need: 12 / scaleX = actual size to set
+      // Texture is 1024x1024 scaled to 96x96 = scale of 0.09375
+      // To get a 72px body, we need: 72 / scaleX = actual size to set
       const scaleX = b.scaleX || 1
       const scaleY = b.scaleY || 1
-      const desiredBodySize = 12
+      const desiredBodySize = 72
       const actualBodyWidth = desiredBodySize / scaleX
       const actualBodyHeight = desiredBodySize / scaleY
-      const actualOffsetX = 2 / scaleX
-      const actualOffsetY = 2 / scaleY
+      const actualOffsetX = 12 / scaleX
+      const actualOffsetY = 12 / scaleY
 
       b.body.setSize(actualBodyWidth, actualBodyHeight)
       b.body.setOffset(actualOffsetX, actualOffsetY)
     } else {
-      b.body.setCircle(1, 0, 0)
+      b.body.setCircle(6, 0, 0)
     }
     // Ensure body is enabled for collision detection
     b.body.enable = true
@@ -718,7 +730,7 @@ export default class GameScene extends Phaser.Scene {
     delete (b as any).orb
     const speed = typeof speedOverride === 'number' ? speedOverride : 300
     const rad = Phaser.Math.DegToRad(angleDeg)
-    b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    b.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite to face direction (top of sprite = front)
     b.setRotation(rad + Math.PI / 2)  // +90 degrees because sprite's top faces up by default
     ;(b as any).damage = this.stats.bulletDamage
@@ -730,7 +742,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (import.meta.env.DEV) {
-      const dbg = this.add.rectangle(x, y, 2, 2, 0x00ff00, 0.6).setDepth(1000)
+      // Reduced debug rectangle from 72x72 to 12x12
+      const dbg = this.add.rectangle(x, y, 12, 12, 0x00ff00, 0.6).setDepth(1000)
       this.tweens.add({ targets: dbg, alpha: 0, duration: 400, onComplete: () => dbg.destroy() })
     }
     // Auto-disable after 2s to avoid endless bullets
@@ -758,16 +771,16 @@ export default class GameScene extends Phaser.Scene {
     m.setDepth(5)
     // Set display size for new sprite, keep collision box reasonable
     if (tex === 'missile-projectile') {
-      m.setDisplaySize(12, 12)
-      m.body?.setSize(6, 6, true)
-      m.setCircle(3, 3, 3)
+      m.setDisplaySize(72, 72)
+      m.body?.setSize(36, 36, true)
+      m.setCircle(18, 18, 18)
     } else {
-      m.body?.setSize(5, 5, true)
-      m.setCircle(3, 0, 0)
+      m.body?.setSize(30, 30, true)
+      m.setCircle(18, 0, 0)
     }
     const speed = 160
     const rad = Phaser.Math.DegToRad(angleDeg)
-    m.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    m.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite to face direction (top of sprite = front)
     m.setRotation(rad + Math.PI / 2)
     ;(m as any).damage = Math.max(1, Math.floor(this.stats.bulletDamage * 1.5))
@@ -817,16 +830,16 @@ export default class GameScene extends Phaser.Scene {
     o.setDepth(5)
     // Set display size for new sprite, keep collision box reasonable
     if (tex === 'orb-projectile') {
-      o.setDisplaySize(16, 16)
-      o.body?.setSize(10, 10, true)
-      o.setCircle(5, 3, 3)
+      o.setDisplaySize(96, 96)
+      o.body?.setSize(60, 60, true)
+      o.setCircle(30, 18, 18)
     } else {
-      o.body?.setSize(8, 8, true)
-      o.setCircle(4, 0, 0)
+      o.body?.setSize(48, 48, true)
+      o.setCircle(24, 0, 0)
     }
     const speed = 110
     const rad = Phaser.Math.DegToRad(angleDeg)
-    o.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    o.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     ;(o as any).damage = this.stats.bulletDamage
     ;(o as any).orb = true
     ;(o as any).exploded = false
@@ -838,7 +851,7 @@ export default class GameScene extends Phaser.Scene {
   private explodeOrb(o: Phaser.Physics.Arcade.Sprite) {
     if ((o as any).exploded) return
     ;(o as any).exploded = true
-    const radius = 28
+    const radius = 168
     const cx = o.x, cy = o.y
     const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
     let hitAnyEnemy = false
@@ -868,7 +881,7 @@ export default class GameScene extends Phaser.Scene {
     const rad = Phaser.Math.DegToRad(angleDeg)
     const dirx = Math.cos(rad)
     const diry = Math.sin(rad)
-    thickness = Math.max(4, thickness)
+    thickness = Math.max(6, thickness)  // Scaled down from 24
     // Draw corridor for the beam hitbox (always visible briefly)
     const g = this.add.graphics().setDepth(999)
     g.fillStyle(0x00ffff, 0.15)
@@ -895,7 +908,8 @@ export default class GameScene extends Phaser.Scene {
       const dy = e.y - py
       if (dx * dx + dy * dy <= thickness * thickness) {
         this.showHitSpark(e.x, e.y)
-        const marker = this.add.rectangle(e.x, e.y, 3, 3, 0x00ffff, 0.9).setDepth(1000)
+        // Reduced beam damage marker from 108x108 to 12x12
+        const marker = this.add.rectangle(e.x, e.y, 12, 12, 0x00ffff, 0.9).setDepth(1000)
         this.tweens.add({ targets: marker, alpha: 0, duration: 250, onComplete: () => marker.destroy() })
         this.enemyManager?.applyDamage(e, Math.max(1, Math.floor(dmg)))
       }
@@ -906,9 +920,9 @@ export default class GameScene extends Phaser.Scene {
     // Use new explosion sprites for missiles/orbs
     if (this.textures.exists('explosion-small') && this.textures.exists('explosion-medium')) {
       if (hitEnemy) {
-        // Enemy hit: animate from small to medium
+        // Enemy hit: animate from small to medium (scaled down to ~200px-400px from 1152-2304px)
         const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
-        ex.setDisplaySize(32, 32)
+        ex.setDisplaySize(200, 200)
         this.tweens.add({
           targets: ex,
           alpha: 0,
@@ -918,21 +932,21 @@ export default class GameScene extends Phaser.Scene {
             if (progress > 0.3 && ex.texture.key === 'explosion-small') {
               ex.setTexture('explosion-medium')
             }
-            const size = 32 + (32 * progress) // 32px to 64px
+            const size = 200 + (200 * progress) // 200px to 400px
             ex.setDisplaySize(size, size)
           },
           onComplete: () => ex.destroy()
         })
       } else {
-        // Regular explosion: just show small
+        // Regular explosion: just show small (scaled down to 200px from 1152px)
         const ex = this.add.image(x, y, 'explosion-small').setDepth(850)
-        ex.setDisplaySize(32, 32)
+        ex.setDisplaySize(200, 200)
         this.tweens.add({ targets: ex, alpha: 0, duration: 220, onComplete: () => ex.destroy() })
       }
     } else {
       // Fallback to old explosion
       const ex = this.add.image(x, y, 'explosion-tex').setDepth(850)
-      const scale = Math.max(0.5, radius / 16)
+      const scale = Math.max(0.5, radius / 96)
       ex.setScale(scale)
       this.tweens.add({ targets: ex, alpha: 0, scale: scale * 1.2, duration: 220, onComplete: () => ex.destroy() })
     }
@@ -941,7 +955,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private showHitSpark(x: number, y: number) {
-    const s = this.add.rectangle(x, y, 3, 3, 0xffffff, 1).setDepth(900)
+    // Reduced size from 108x108 to 12x12 for much smaller hit sparks
+    const s = this.add.rectangle(x, y, 12, 12, 0xffffff, 1).setDepth(900)
     this.tweens.add({ targets: s, alpha: 0, duration: 120, onComplete: () => s.destroy() })
   }
 
@@ -969,7 +984,7 @@ export default class GameScene extends Phaser.Scene {
     this.showHitSpark(e.x, e.y)
     b.disableBody(true, true)
     if ((b as any).missile) {
-      this.showExplosion(e.x, e.y, 20, true)
+      this.showExplosion(e.x, e.y, 120, true)
     }
     this.enemyManager?.applyDamage(e, damage)
   }
@@ -987,7 +1002,7 @@ export default class GameScene extends Phaser.Scene {
     const dyp = this.player.y - enemy.y
     const ang = Math.atan2(dyp, dxp)
     const kb = 140
-    this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
+    this.player.setVelocity(Math.cos(ang) * kb * 6, Math.sin(ang) * kb * 6)
     // Flash
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 4 })
     // Subtle screen shake on hit if enabled
@@ -995,7 +1010,7 @@ export default class GameScene extends Phaser.Scene {
     // Brief enemy knockback and stun
     const kbe = 90
     if (enemy && (enemy as any).setVelocity) {
-      enemy.setVelocity(Math.cos(ang + Math.PI) * kbe, Math.sin(ang + Math.PI) * kbe)
+      enemy.setVelocity(Math.cos(ang + Math.PI) * kbe * 6, Math.sin(ang + Math.PI) * kbe * 6)
     }
     ;(enemy as any).stunUntil = this.time.now + 200
     if (result.died) {
@@ -1020,7 +1035,7 @@ export default class GameScene extends Phaser.Scene {
     const dyp = this.player.y - py
     const ang = Math.atan2(dyp, dxp)
     const kb = 120
-    this.player.setVelocity(Math.cos(ang) * kb, Math.sin(ang) * kb)
+    this.player.setVelocity(Math.cos(ang) * kb * 6, Math.sin(ang) * kb * 6)
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true, duration: 80, repeat: 3 })
     if (getOptions().screenShake) this.cameras.main.shake(90, 0.003)
     if (result.died) {
@@ -1078,7 +1093,7 @@ export default class GameScene extends Phaser.Scene {
     b.setDepth(4)
     // Set display size and origin FIRST
     if (tex === 'enemy-projectile') {
-      b.setDisplaySize(14, 14)
+      b.setDisplaySize(84, 84)
       b.setOrigin(0.5, 0.5)
     } else {
       b.setOrigin(0.5, 0.5)
@@ -1093,22 +1108,22 @@ export default class GameScene extends Phaser.Scene {
     if (tex === 'enemy-projectile') {
       const scaleX = b.scaleX || 1
       const scaleY = b.scaleY || 1
-      const desiredBodySize = 10
+      const desiredBodySize = 60
       const actualBodyWidth = desiredBodySize / scaleX
       const actualBodyHeight = desiredBodySize / scaleY
-      const actualOffsetX = 2 / scaleX
-      const actualOffsetY = 2 / scaleY
+      const actualOffsetX = 12 / scaleX
+      const actualOffsetY = 12 / scaleY
       b.body.setSize(actualBodyWidth, actualBodyHeight)
       b.body.setOffset(actualOffsetX, actualOffsetY)
     } else {
-      b.body.setSize(2, 2, true)
-      b.setCircle(1, 0, 0)
+      b.body.setSize(12, 12, true)
+      b.setCircle(6, 0, 0)
     }
     // Ensure body is enabled for collision detection
     b.body.enable = true
     const speed = 120
     const rad = Phaser.Math.DegToRad(angleDeg)
-    b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed)
+    b.setVelocity(Math.cos(rad) * speed * 6, Math.sin(rad) * speed * 6)
     // Rotate sprite so left side (front) faces direction of movement
     b.setRotation(rad + Math.PI)
     ;(b as any).damage = 1
@@ -1140,13 +1155,13 @@ export default class GameScene extends Phaser.Scene {
           trailPoints.pop()
         }
 
-        // Draw trail
+        // Draw trail - reduced width from 18 to 6 for much smaller trail
         trail.clear()
         for (let i = 0; i < trailPoints.length - 1; i++) {
           const p1 = trailPoints[i]
           const p2 = trailPoints[i + 1]
           const alpha = 0.6 * (1 - i / maxTrailLength)
-          const width = 3 * (1 - i / maxTrailLength)
+          const width = 6 * (1 - i / maxTrailLength)
           trail.lineStyle(width, 0x9944ff, alpha)
           trail.lineBetween(p1.x, p1.y, p2.x, p2.y)
         }
@@ -1184,7 +1199,7 @@ export default class GameScene extends Phaser.Scene {
         this.stats.hpMax = result.hpMax
         audio.sfxHurt()
         const ang = Math.atan2(this.player!.y - src.y, this.player!.x - src.x)
-        this.player!.setVelocity(Math.cos(ang) * 120, Math.sin(ang) * 120)
+        this.player!.setVelocity(Math.cos(ang) * 120 * 6, Math.sin(ang) * 120 * 6)
         if (result.died) {
           audio.stopMusic()
           this.scene.stop('HUD')

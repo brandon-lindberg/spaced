@@ -60,8 +60,8 @@ export class BackgroundController {
     this.createLayer('stars-far', width, height, -1000)
     this.createLayer('stars-mid', width, height, -999)
     this.createLayer('stars-near', width, height, -998)
-    this.bgSun = this.scene.add.image(width - 80, 80, 'sun-tex').setScrollFactor(0).setDepth(-997)
-    this.bgSun.setScale(1.2)
+    this.bgSun = this.scene.add.image(width - 2880, 2880, 'sun-tex').setScrollFactor(0).setDepth(-997)
+    this.bgSun.setScale(43.2)
   }
 
   update(camera: Phaser.Cameras.Scene2D.Camera) {
@@ -78,8 +78,8 @@ export class BackgroundController {
       this.bgNear.tilePositionY = camera.scrollY * 0.5
     }
     if (this.bgSun) {
-      this.bgSun.x = this.scene.scale.width - 80 + camera.scrollX * 0.02
-      this.bgSun.y = 80 + camera.scrollY * 0.02
+      this.bgSun.x = this.scene.scale.width - 2880 + camera.scrollX * 0.02
+      this.bgSun.y = 2880 + camera.scrollY * 0.02
     }
   }
 
@@ -90,7 +90,7 @@ export class BackgroundController {
     const cam = this.scene.cameras?.main
     if (cam) cam.setZoom(this.config.qualityZoom[qualityLevel] ?? 1)
     if (this.bgSun) {
-      this.bgSun.setPosition(width - 80, 80)
+      this.bgSun.setPosition(width - 2880, 2880)
     }
   }
 

@@ -118,11 +118,11 @@ export class BossManager {
     boss.setOrigin(0.5, 0.5)
     boss.setRotation(0)
 
-    if (bossType === 1) boss.setScale(0.046875)
-    else boss.setScale(2)
+    if (bossType === 1) boss.setScale(0.28125)
+    else boss.setScale(12)
 
     boss.enableBody(true, x, y, true, true)
-    setCircleHitbox(boss, bossType === 1 ? 20 : 6)
+    setCircleHitbox(boss, bossType === 1 ? 120 : 36)
     ;(boss as any).hp = type === 5 ? 260 : (bossType === 1 ? 800 : 80)  // 10x HP for level 1 boss
     ;(boss as any).hpMax = (boss as any).hp
     ;(boss as any).touchDamage = 2
@@ -158,8 +158,8 @@ export class BossManager {
     boss.setOrigin(0.5, 0.5)
     boss.setRotation(0)
     boss.enableBody(true, x, y, true, true)
-    boss.setScale(2.2)
-    setCircleHitbox(boss, 7)
+    boss.setScale(13.2)
+    setCircleHitbox(boss, 42)
     ;(boss as any).hp = 260
     ;(boss as any).hpMax = 260
     ;(boss as any).touchDamage = 3
@@ -244,10 +244,10 @@ export class BossManager {
       this.bossTimers.push(this.scene.time.addEvent({ delay: 2200 - idx * 300, loop: true, callback: () => {
         if (!boss.active) return
         const ang = aimToPlayer()
-        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 140, boss.y + Math.sin(ang) * 140, tele[idx])
+        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 840, boss.y + Math.sin(ang) * 840, tele[idx])
         this.scene.time.delayedCall(tele[idx], () => {
           if (!boss.active) return
-          boss.setVelocity(Math.cos(ang) * spd[idx], Math.sin(ang) * spd[idx])
+          boss.setVelocity(Math.cos(ang) * spd[idx] * 6, Math.sin(ang) * spd[idx] * 6)
           this.scene.time.delayedCall(dur[idx], () => boss.active && boss.setVelocity(0, 0))
         })
       }}))
@@ -255,7 +255,7 @@ export class BossManager {
     }
 
     if (this.currentBossType === 4) {
-      const ringR = [60, 68, 76]
+      const ringR = [360, 408, 456]
       const count = [10, 14, 18]
       const tele = [400, 350, 300]
       const delay = [2500, 2200, 1900]
@@ -267,7 +267,7 @@ export class BossManager {
           const ang = (k / count[idx]) * Math.PI * 2
           const rx = x + Math.cos(ang) * ringR[idx]
           const ry = y + Math.sin(ang) * ringR[idx]
-          this.showTelegraphCircle(rx, ry, 8, tele[idx])
+          this.showTelegraphCircle(rx, ry, 48, tele[idx])
         }
         this.scene.time.delayedCall(tele[idx], () => {
           if (!boss.active) return
@@ -299,8 +299,8 @@ export class BossManager {
       this.bossTimers.push(this.scene.time.addEvent({ delay: 2600, loop: true, callback: () => {
         if (!boss.active) return
         const ang = aimToPlayer()
-        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 150, boss.y + Math.sin(ang) * 150, 320)
-        this.scene.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185, Math.sin(ang) * 185))
+        this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 900, boss.y + Math.sin(ang) * 900, 320)
+        this.scene.time.delayedCall(320, () => boss.active && boss.setVelocity(Math.cos(ang) * 185 * 6, Math.sin(ang) * 185 * 6))
         this.scene.time.delayedCall(670, () => boss.active && boss.setVelocity(0, 0))
       }}))
       return
@@ -338,8 +338,8 @@ export class BossManager {
     this.bossTimers.push(this.scene.time.addEvent({ delay: 2200, loop: true, callback: () => {
       if (!boss.active) return
       const ang = aimToPlayer()
-      this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 160, boss.y + Math.sin(ang) * 160, 260)
-      this.scene.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200, Math.sin(ang) * 200))
+      this.showTelegraphLine(boss.x, boss.y, boss.x + Math.cos(ang) * 960, boss.y + Math.sin(ang) * 960, 260)
+      this.scene.time.delayedCall(260, () => boss.active && boss.setVelocity(Math.cos(ang) * 200 * 6, Math.sin(ang) * 200 * 6))
       this.scene.time.delayedCall(600, () => boss.active && boss.setVelocity(0, 0))
     }}))
   }
@@ -359,7 +359,7 @@ export class BossManager {
 
   private showTelegraphLine(x1: number, y1: number, x2: number, y2: number, durationMs: number) {
     const g = this.scene.add.graphics().setDepth(980)
-    g.lineStyle(2, 0xff4444, 0.8)
+    g.lineStyle(72, 0xff4444, 0.8)
     g.beginPath()
     g.moveTo(x1, y1)
     g.lineTo(x2, y2)
@@ -369,7 +369,7 @@ export class BossManager {
 
   private showTelegraphCircle(x: number, y: number, radius: number, durationMs: number) {
     const g = this.scene.add.graphics().setDepth(980)
-    g.lineStyle(2, 0xffaa00, 0.85)
+    g.lineStyle(72, 0xffaa00, 0.85)
     g.strokeCircle(x, y, radius)
     this.scene.tweens.add({ targets: g, alpha: 0, duration: durationMs, onComplete: () => g.destroy() })
   }

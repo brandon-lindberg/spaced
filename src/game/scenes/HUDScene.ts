@@ -21,41 +21,63 @@ export default class HUDScene extends Phaser.Scene {
     })
     this.scene.bringToTop()
 
+    const { width, height } = this.scale
+
+    // Responsive sizing
+    const iconSize = Math.max(20, Math.min(30, width * 0.016))
+    const fontSize = Math.max(14, Math.min(24, width * 0.0125))
+    const spacing = Math.max(20, Math.min(30, height * 0.028))
+    const padding = Math.max(10, Math.min(15, width * 0.008))
+    const topMargin = Math.max(15, Math.min(25, height * 0.023))
+
     // Minimal icon set
     const ensureIcon = (key: string, draw: (g: Phaser.GameObjects.Graphics) => void) => {
       if (this.textures.exists(key)) return
       const g = this.add.graphics()
       draw(g)
-      g.generateTexture(key, 10, 10)
+      g.generateTexture(key, iconSize, iconSize)
       g.destroy()
     }
-    ensureIcon('icon-heart', (g) => { g.clear(); g.fillStyle(0xff5566, 1); g.fillCircle(3, 4, 3); g.fillCircle(7, 4, 3); g.fillTriangle(1, 5, 9, 5, 5, 10) })
-    ensureIcon('icon-coin', (g) => { g.clear(); g.fillStyle(0xffcc33, 1); g.fillCircle(5, 5, 4) })
-    ensureIcon('icon-xp', (g) => { g.clear(); g.fillStyle(0x66ccff, 1); g.fillTriangle(5, 0, 10, 5, 0, 5); g.fillTriangle(0, 5, 10, 5, 5, 10) })
-    ensureIcon('icon-timer', (g) => { g.clear(); g.lineStyle(2, 0xffffff, 1); g.strokeCircle(5, 5, 4); g.lineBetween(5, 5, 5, 2); g.lineBetween(5, 5, 8, 5) })
+    ensureIcon('icon-heart', (g) => { g.clear(); g.fillStyle(0xff5566, 1); g.fillCircle(9, 12, 9); g.fillCircle(21, 12, 9); g.fillTriangle(3, 15, 27, 15, 15, 30) })
+    ensureIcon('icon-coin', (g) => { g.clear(); g.fillStyle(0xffcc33, 1); g.fillCircle(15, 15, 12) })
+    ensureIcon('icon-xp', (g) => { g.clear(); g.fillStyle(0x66ccff, 1); g.fillTriangle(15, 0, 30, 15, 0, 15); g.fillTriangle(0, 15, 30, 15, 15, 30) })
+    ensureIcon('icon-timer', (g) => { g.clear(); g.lineStyle(6, 0xffffff, 1); g.strokeCircle(15, 15, 12); g.lineBetween(15, 15, 15, 6); g.lineBetween(15, 15, 24, 15) })
 
-    // UI elements (compact)
-    this.add.image(6, 6, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.hpText = this.add.text(12, 2, '0/0', { fontFamily: 'monospace', fontSize: '8px', color: '#ffdddd' }).setScrollFactor(0).setDepth(1500)
+    // UI elements (responsive)
+    const iconX = padding
+    const textX = padding + iconSize + 5
 
-    this.add.image(6, 16, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.goldText = this.add.text(12, 12, '0', { fontFamily: 'monospace', fontSize: '8px', color: '#ffdd66' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin, 'icon-heart').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.hpText = this.add.text(textX, topMargin - fontSize/2, '0/0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdddd' }).setScrollFactor(0).setDepth(1500)
 
-    this.add.image(6, 26, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
-    this.xpText = this.add.text(12, 22, '0', { fontFamily: 'monospace', fontSize: '8px', color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
-    this.lvlText = this.add.text(40, 2, 'Lv 1', { fontFamily: 'monospace', fontSize: '8px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin + spacing, 'icon-coin').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.goldText = this.add.text(textX, topMargin + spacing - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffdd66' }).setScrollFactor(0).setDepth(1500)
 
-    this.add.image(this.scale.width - 40, 6, 'icon-timer').setOrigin(0, 0).setScrollFactor(0).setDepth(1500)
-    this.timeText = this.add.text(this.scale.width - 28, 2, '00:00', { fontFamily: 'monospace', fontSize: '8px', color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
+    this.add.image(iconX, topMargin + spacing * 2, 'icon-xp').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.xpText = this.add.text(textX, topMargin + spacing * 2 - fontSize/2, '0', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#88ddff' }).setScrollFactor(0).setDepth(1500)
+
+    const lvlX = Math.max(100, Math.min(120, width * 0.0625))
+    this.lvlText = this.add.text(lvlX, topMargin - fontSize/2, 'Lv 1', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
+
+    const timerIconX = width - Math.max(100, Math.min(120, width * 0.0625))
+    const timerTextX = width - Math.max(70, Math.min(84, width * 0.044))
+    this.add.image(timerIconX, topMargin, 'icon-timer').setOrigin(0.5).setScrollFactor(0).setDepth(1500)
+    this.timeText = this.add.text(timerTextX, topMargin - fontSize/2, '00:00', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setScrollFactor(0).setDepth(1500)
 
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(1500)
-    this.bossLabel = this.add.text(this.scale.width / 2, 12, '', { fontFamily: 'monospace', fontSize: '8px', color: '#ffffff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500)
+    this.bossLabel = this.add.text(width / 2, Math.max(30, spacing + topMargin), '', { fontFamily: 'monospace', fontSize: `${fontSize}px`, color: '#ffffff' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500)
 
-    // Simple icons for weapons/accessories with level pips (no text labels)
+    // Simple icons for weapons/accessories with level pips (responsive)
     const iconLayer = this.add.layer().setDepth(1499)
+    const itemIconSize = Math.max(30, Math.min(48, width * 0.025))
+    const pipSize = Math.max(4, Math.min(6, width * 0.003))
+    const pipSpacing = Math.max(6, Math.min(9, width * 0.005))
+    const itemSpacing = Math.max(30, Math.min(42, width * 0.022))
+    const itemStartY = Math.max(90, Math.min(120, height * 0.11))
+
     const ensureBlockIcon = (key: string, color: number) => {
       if (this.textures.exists(key)) return
-      const g = this.add.graphics(); g.fillStyle(color, 1); g.fillRect(0,0,10,10); g.generateTexture(key,10,10); g.destroy()
+      const g = this.add.graphics(); g.fillStyle(color, 1); g.fillRect(0,0,30,30); g.generateTexture(key,30,30); g.destroy()
     }
     // Only ensure accessory icon as fallback
     ensureBlockIcon('icon-acc', 0x226644)
@@ -67,7 +89,7 @@ export default class HUDScene extends Phaser.Scene {
       const accStr = (this.registry.get('inv-accessories') as string) || ''
       const items: string[] = []
       if (weaponsStr) items.push(...weaponsStr.split(', '))
-      let x = 2, y = 40
+      let x = padding, y = itemStartY
       for (const item of items) {
         const match = /(.*) Lv(\d+)/.exec(item)
         const name = match ? match[1] : item
@@ -77,35 +99,35 @@ export default class HUDScene extends Phaser.Scene {
         if (/Missiles/i.test(name)) key = 'icon-weapon-missiles'
         if (/Orb/i.test(name)) key = 'icon-weapon-orb'
         if (this.textures.exists(key)) {
-          const img = this.add.image(x + 6, y + 6, key).setOrigin(0.5).setScrollFactor(0)
-          img.setDisplaySize(16, 16)
+          const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, key).setOrigin(0.5).setScrollFactor(0)
+          img.setDisplaySize(itemIconSize, itemIconSize)
           iconLayer.add(img)
         }
         // pips under icon
         for (let i = 0; i < Math.min(6, lvl); i++) {
-          const pip = this.add.rectangle(x + 2 + i * 3, y + 12, 2, 2, 0x00ff88).setScrollFactor(0)
+          const pip = this.add.rectangle(x + pipSize + i * pipSpacing, y + itemIconSize, pipSize, pipSize, 0x00ff88).setScrollFactor(0)
           iconLayer.add(pip)
         }
-        x += 14
-        if (x > this.scale.width - 14) { x = 2; y += 16 }
+        x += itemSpacing
+        if (x > width - itemSpacing) { x = padding; y += itemSpacing + pipSize + 5 }
       }
       // accessories row(s)
       if (accStr && accStr.trim() !== '—' && accStr.trim() !== '') {
-        x = 2; y += 16
+        x = padding; y += itemSpacing + pipSize + 5
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
           const lvl = match ? parseInt(match[2], 10) : 1
           if (this.textures.exists('icon-acc')) {
-            const img = this.add.image(x + 6, y + 6, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
-            img.setDisplaySize(16, 16)
+            const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
+            img.setDisplaySize(itemIconSize, itemIconSize)
             iconLayer.add(img)
           }
           for (let i = 0; i < Math.min(6, lvl); i++) {
-            const pip = this.add.rectangle(x + 2 + i * 3, y + 12, 2, 2, 0x88ccff).setScrollFactor(0)
+            const pip = this.add.rectangle(x + pipSize + i * pipSpacing, y + itemIconSize, pipSize, pipSize, 0x88ccff).setScrollFactor(0)
             iconLayer.add(pip)
           }
-          x += 14
-          if (x > this.scale.width - 14) { x = 2; y += 16 }
+          x += itemSpacing
+          if (x > width - itemSpacing) { x = padding; y += itemSpacing + pipSize + 5 }
         }
       }
     }
@@ -130,9 +152,9 @@ export default class HUDScene extends Phaser.Scene {
     if (initBoss && initBoss.max > 0) {
       this.bossBar?.clear()
       const w = this.scale.width * 0.5
-      const h = 5
+      const h = 15
       const x = (this.scale.width - w) / 2
-      const y = 2
+      const y = 6
       this.bossBar?.fillStyle(0x000000, 0.4)
       this.bossBar?.fillRect(x, y, w, h)
       const fill = Math.max(0, Math.min(1, initBoss.cur / initBoss.max))
@@ -145,8 +167,11 @@ export default class HUDScene extends Phaser.Scene {
       if (key === 'toast') {
         const msg = (value as string) || ''
         if (!msg) return
-        const t = this.add.text(this.scale.width / 2, this.scale.height - 30, msg, {
-          fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', backgroundColor: '#00000099', padding: { x: 4, y: 2 }
+        const toastFontSize = Math.max(16, Math.min(30, width * 0.016))
+        const toastPadding = { x: Math.max(8, Math.min(12, width * 0.006)), y: Math.max(4, Math.min(6, height * 0.006)) }
+        const toastY = height - Math.max(60, Math.min(90, height * 0.083))
+        const t = this.add.text(width / 2, toastY, msg, {
+          fontFamily: 'monospace', fontSize: `${toastFontSize}px`, color: '#ffffff', backgroundColor: '#00000099', padding: toastPadding
         }).setScrollFactor(0).setOrigin(0.5).setDepth(2000)
         this.tweens.add({ targets: t, alpha: 0, duration: 900, ease: 'Sine.easeIn', onComplete: () => t.destroy() })
         this.registry.set('toast', '')
@@ -169,9 +194,9 @@ export default class HUDScene extends Phaser.Scene {
         this.bossBar?.clear()
         if (hp && hp.max > 0) {
           const w = this.scale.width * 0.5
-          const h = 5
+          const h = 15
           const x = (this.scale.width - w) / 2
-          const y = 2
+          const y = 6
           this.bossBar?.fillStyle(0x000000, 0.4)
           this.bossBar?.fillRect(x, y, w, h)
           const fill = Math.max(0, Math.min(1, hp.cur / hp.max))
@@ -191,7 +216,9 @@ export default class HUDScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.registry.events.off('changedata', onData))
     this.events.once('destroy', () => this.registry.events.off('changedata', onData))
     refreshIcons()
-    const fpsText = this.add.text(2, this.scale.height - 10, 'FPS', { fontFamily: 'monospace', fontSize: '8px', color: '#00ff88' }).setScrollFactor(0)
+    const fpsFontSize = Math.max(12, Math.min(24, width * 0.0125))
+    const fpsY = height - Math.max(20, Math.min(30, height * 0.028))
+    const fpsText = this.add.text(padding, fpsY, 'FPS', { fontFamily: 'monospace', fontSize: `${fpsFontSize}px`, color: '#00ff88' }).setScrollFactor(0)
     fpsText.setVisible(!!getOptions().showFPS)
     this.time.addEvent({
       delay: 500,

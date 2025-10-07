@@ -1,12 +1,16 @@
 import Phaser from 'phaser'
-import { attachGamepad, ensureMobileGamepadInit } from '../systems/gamepad'
+import { MenuCard } from '../ui/MenuComponents'
+import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
+import { IconGenerator } from '../ui/IconGenerator'
 
 export type LevelUpChoice = { key: string; label: string; color: string }
 
 export default class LevelUpScene extends Phaser.Scene {
   private choices: LevelUpChoice[] = []
-  private selected = 0
-  private choiceTexts: Phaser.GameObjects.Text[] = []
+  private cards: MenuCard[] = []
+  private navigator?: MenuNavigator
+  private overlay?: Phaser.GameObjects.Rectangle
+  private title?: Phaser.GameObjects.Text
 
   constructor() {
     super('LevelUp')
@@ -17,99 +21,173 @@ export default class LevelUpScene extends Phaser.Scene {
   }
 
   create() {
+    // Generate icons
+    IconGenerator.generateIcons(this)
+
     const { width, height } = this.scale
 
-    const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.7)
-    overlay.setOrigin(0, 0)
-    this.add
-      .text(width / 2, height / 2 - 30, 'Level Up!', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5)
+    // Semi-transparent overlay
+    this.overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8)
+      .setOrigin(0, 0)
+      .setDepth(1000)
+
+    // Title with glow effect (responsive)
+    const titleFontSize = Math.max(24, Math.min(72, width * 0.0625))
+    this.title = this.add.text(width / 2, height / 2 - height * 0.38, '⬆️ LEVEL UP!', {
+      fontFamily: 'monospace',
+      fontSize: `${titleFontSize}px`,
+      color: '#ffff66',
+      fontStyle: 'bold',
+      stroke: '#ff6600',
+      strokeThickness: Math.max(4, titleFontSize * 0.08),
+    }).setOrigin(0.5).setDepth(1010)
+
+    // Pulse animation for title
+    this.tweens.add({
+      targets: this.title,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    })
 
     const visibleChoices = this.choices.length
       ? this.choices
       : [
-          { key: 'acc-thrusters', label: 'Accessory: Thrusters (+speed)', color: '#66ccff' },
-          { key: 'acc-magnet-core', label: 'Accessory: Tractor Beam (+pickup)', color: '#33ff99' },
-          { key: 'acc-ammo-loader', label: 'Accessory: Ammo Loader (+fire rate)', color: '#ffaa66' },
-          { key: 'acc-power-cell', label: 'Accessory: Power Cell (+damage)', color: '#ff8866' },
-          { key: 'acc-splitter', label: 'Accessory: Splitter (+multishot)', color: '#ccccff' },
-          { key: 'w-laser', label: 'Weapon: Laser', color: '#ff66ff' },
-          { key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' },
-          { key: 'w-orb', label: 'Weapon: Orb', color: '#66ccff' },
-          { key: 'gold', label: 'Bounty +5 gold now', color: '#88ff88' },
+          { key: 'acc-thrusters', label: 'Thrusters', color: '#66ccff' },
+          { key: 'acc-magnet-core', label: 'Tractor Beam', color: '#33ff99' },
+          { key: 'acc-ammo-loader', label: 'Ammo Loader', color: '#ffaa66' },
+          { key: 'acc-power-cell', label: 'Power Cell', color: '#ff8866' },
+          { key: 'acc-splitter', label: 'Splitter', color: '#ccccff' },
+          { key: 'w-laser', label: 'Laser', color: '#ff66ff' },
+          { key: 'w-missiles', label: 'Missiles', color: '#ffcc66' },
+          { key: 'w-orb', label: 'Orb', color: '#66ccff' },
+          { key: 'gold', label: 'Bounty +5g', color: '#88ff88' },
         ]
 
-    const startY = height / 2 + 4
-    this.choiceTexts = []
+    // Create choice cards in a grid (responsive)
+    const cardWidth = Math.max(200, Math.min(400, width * 0.28))
+    const cardHeight = Math.max(180, Math.min(320, height * 0.42))
+    const gap = Math.max(15, Math.min(30, width * 0.02))
+    const columns = Math.min(3, visibleChoices.length)
+    const rows = Math.ceil(visibleChoices.length / columns)
+    const gridWidth = columns * cardWidth + (columns - 1) * gap
+    const gridHeight = rows * cardHeight + (rows - 1) * gap
+    const startX = (width - gridWidth) / 2
+    const startY = (height - gridHeight) / 2 + Math.max(30, height * 0.06)
+
     visibleChoices.forEach((c, i) => {
-      const y = startY + i * 14
-      const t = this.add.text(width / 2, y, c.label, {
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        color: c.color,
-        backgroundColor: '#000000',
-        padding: { x: 3, y: 1 },
+      const col = i % columns
+      const row = Math.floor(i / columns)
+      const x = startX + col * (cardWidth + gap)
+      const y = startY + row * (cardHeight + gap)
+
+      // Determine icon based on choice key
+      let icon = 'icon-acc'
+      if (c.key.startsWith('w-laser')) icon = 'icon-weapon-laser'
+      else if (c.key.startsWith('w-missile')) icon = 'icon-weapon-missiles'
+      else if (c.key.startsWith('w-orb')) icon = 'icon-weapon-orb'
+      else if (c.key.startsWith('w-')) icon = 'icon-weapon'
+      else if (c.key === 'gold') icon = 'icon-gold'
+
+      // Get description
+      const desc = this.getDescription(c.key)
+
+      // Parse color
+      const colorValue = parseInt(c.color.replace('#', ''), 16)
+
+      const card = new MenuCard({
+        scene: this,
+        x,
+        y,
+        width: cardWidth,
+        height: cardHeight,
+        title: c.label,
+        description: desc,
+        icon,
+        color: colorValue,
+        onClick: () => this.choose(c.key),
       })
-      t.setOrigin(0.5)
-      t.setInteractive({ useHandCursor: true })
-      t.on('pointerover', () => t.setStyle({ backgroundColor: '#111111' }))
-      t.on('pointerout', () => t.setStyle({ backgroundColor: '#000000' }))
-      // Basic tooltip explaining item
-      let tip: Phaser.GameObjects.Text | null = null
-      const explain = () => {
-        if (tip) return
-        const desc =
-          c.key === 'w-laser' ? 'Laser: spinning beam, ticks damage around you' :
-          c.key === 'w-missiles' ? 'Missiles: homing, high impact' :
-          c.key === 'w-orb' ? 'Orb: detonates for AoE blast' :
-          c.key === 'acc-thrusters' ? 'Thrusters: move faster' :
-          c.key === 'acc-magnet-core' ? 'Tractor Beam: larger pickup radius' :
-          c.key === 'acc-ammo-loader' ? 'Ammo Loader: higher fire rate' :
-          c.key === 'acc-power-cell' ? 'Power Cell: more damage' :
-          c.key === 'acc-splitter' ? 'Splitter: more projectiles' :
-          c.key === 'gold' ? 'Gain 5 gold now' :
-          'Upgrade'
-        tip = this.add.text(width / 2, y + 8, desc, { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc', backgroundColor: '#000000', padding: { x: 3, y: 1 } }).setOrigin(0.5, 0)
-      }
-      const clearTip = () => { tip?.destroy(); tip = null }
-      t.on('pointerover', explain)
-      t.on('pointerout', clearTip)
-      t.on('pointerdown', () => this.choose(c.key))
-      this.choiceTexts.push(t)
+
+      card.getContainer().setDepth(1010)
+
+      // Stagger animation for card entrance
+      card.getContainer().setAlpha(0)
+      card.getContainer().setScale(0.8)
+      this.tweens.add({
+        targets: card.getContainer(),
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 300,
+        delay: i * 80,
+        ease: 'Back.easeOut',
+      })
+
+      this.cards.push(card)
     })
 
-    const applyHighlight = () => {
-      this.choiceTexts.forEach((t, i) => t.setStyle({ backgroundColor: i === this.selected ? '#111111' : '#000000' }))
-    }
-    applyHighlight()
+    // Setup navigation
+    const navigableItems: NavigableItem[] = this.cards.map((card, index) => ({
+      index,
+      onFocus: () => card.setFocused(true),
+      onBlur: () => card.setFocused(false),
+      onActivate: () => this.choose(visibleChoices[index].key),
+    }))
 
-    const moveSel = (dir: number) => {
-      const n = this.choiceTexts.length
-      if (!n) return
-      this.selected = (this.selected + dir + n) % n
-      applyHighlight()
-    }
-
-    ensureMobileGamepadInit(this)
-    attachGamepad(this, {
-      up: () => moveSel(-1),
-      down: () => moveSel(1),
-      confirm: () => {
-        const c = visibleChoices[this.selected]
-        if (c) this.choose(c.key)
-      },
-      cancel: () => undefined,
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns,
+      onActivate: (index) => this.choose(visibleChoices[index].key),
     })
+  }
+
+  private getDescription(key: string): string {
+    if (key === 'w-laser') return 'Spinning beam with continuous damage'
+    if (key === 'w-missiles') return 'Homing projectiles with high impact'
+    if (key === 'w-orb') return 'Detonates for area-of-effect blast'
+    if (key === 'acc-thrusters') return '+Speed: Move faster'
+    if (key === 'acc-magnet-core') return '+Pickup Range: Collect from farther'
+    if (key === 'acc-ammo-loader') return '+Fire Rate: Shoot faster'
+    if (key === 'acc-power-cell') return '+Damage: Hit harder'
+    if (key === 'acc-splitter') return '+Multishot: More projectiles'
+    if (key === 'gold') return 'Gain 5 gold immediately'
+    return 'Upgrade'
   }
 
   private choose(key: string) {
-    this.game.events.emit('levelup-apply', key)
-    this.scene.stop()
+    // Play exit animation
+    this.tweens.add({
+      targets: this.cards.map((c) => c.getContainer()),
+      alpha: 0,
+      scaleX: 0.9,
+      scaleY: 0.9,
+      duration: 200,
+      ease: 'Quad.easeIn',
+    })
+
+    this.tweens.add({
+      targets: [this.title, this.overlay],
+      alpha: 0,
+      duration: 200,
+      onComplete: () => {
+        this.game.events.emit('levelup-apply', key)
+        this.cleanup()
+        this.scene.stop()
+      },
+    })
+  }
+
+  private cleanup() {
+    this.navigator?.destroy()
+    this.cards.forEach((card) => card.destroy())
+    this.cards = []
+  }
+
+  shutdown() {
+    this.cleanup()
   }
 }
-
-
