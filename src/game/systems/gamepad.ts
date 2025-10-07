@@ -121,14 +121,19 @@ export function ensureMobileGamepadInit(scene: Phaser.Scene) {
     }
   } catch {}
 
-  // Create an overlay prompt for user interaction
+  // Create an overlay prompt for user interaction (responsive)
   const { width, height } = scene.scale
+  const promptWidth = Math.max(150, Math.min(200, width * 0.3))
+  const promptHeight = Math.max(50, Math.min(60, height * 0.08))
+  const promptFontSize = Math.max(10, Math.min(12, width * 0.01))
+  const promptBorderWidth = Math.max(1, Math.min(2, width * 0.001))
+
   const overlay = scene.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0).setDepth(10000).setScrollFactor(0)
-  const promptBg = scene.add.rectangle(width/2, height/2, 200, 60, 0x222244, 1).setOrigin(0.5).setDepth(10001).setScrollFactor(0)
-  promptBg.setStrokeStyle(2, 0x3355ff, 1)
-  const promptText = scene.add.text(width/2, height/2 - 8, 'Tap to enable\ngamepad', {
+  const promptBg = scene.add.rectangle(width/2, height/2, promptWidth, promptHeight, 0x222244, 1).setOrigin(0.5).setDepth(10001).setScrollFactor(0)
+  promptBg.setStrokeStyle(promptBorderWidth, 0x3355ff, 1)
+  const promptText = scene.add.text(width/2, height/2 - promptFontSize/2, 'Tap to enable\ngamepad', {
     fontFamily: 'monospace',
-    fontSize: '12px',
+    fontSize: `${promptFontSize}px`,
     color: '#ffffff',
     align: 'center'
   }).setOrigin(0.5).setDepth(10002).setScrollFactor(0)

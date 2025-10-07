@@ -30,14 +30,15 @@ export default class MenuScene extends Phaser.Scene {
     // Background
     this.add.rectangle(0, 0, width, height, 0x0a0d1f, 1).setOrigin(0, 0)
 
-    // Title with glow
-    const title = this.add.text(width / 2, 180, 'SPACED', {
+    // Title with glow (responsive sizing with better mobile support)
+    const titleFontSize = Math.max(36, Math.min(96, width * 0.08))
+    const title = this.add.text(width / 2, height * 0.2, 'SPACED', {
       fontFamily: 'monospace',
-      fontSize: '96px',
+      fontSize: `${titleFontSize}px`,
       color: '#66ccff',
       fontStyle: 'bold',
       stroke: '#0044aa',
-      strokeThickness: 12,
+      strokeThickness: Math.max(3, titleFontSize * 0.125),
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
 
     // Pulse animation
@@ -51,10 +52,12 @@ export default class MenuScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     })
 
-    // Bank gold display
-    this.add.text(24, height - 24, `Bank: ${getBankGold()}g`, {
+    // Bank gold display (responsive sizing with better mobile support)
+    const bankFontSize = Math.max(18, Math.min(36, width * 0.025))
+    const bankPadding = Math.max(8, Math.min(24, width * 0.0125))
+    this.add.text(bankPadding, height - bankPadding, `Bank: ${getBankGold()}g`, {
       fontFamily: 'monospace',
-      fontSize: '36px',
+      fontSize: `${bankFontSize}px`,
       color: '#ffcc33',
     }).setOrigin(0, 1).setScrollFactor(0).setDepth(10)
 
@@ -76,15 +79,18 @@ export default class MenuScene extends Phaser.Scene {
 
   private createMainMenu(width: number, height: number) {
     const buttonY = height / 2
-    const buttonGap = 96
+    // Responsive button sizing with better mobile support
+    const buttonWidth = Math.max(200, Math.min(480, width * 0.4))
+    const buttonHeight = Math.max(50, Math.min(84, height * 0.078))
+    const buttonGap = Math.max(60, Math.min(96, height * 0.089))
 
-    // Start Game button
+    // Start Game button (responsive)
     const startButton = new MenuButton({
       scene: this,
-      x: width / 2 - 240,
+      x: width / 2 - buttonWidth / 2,
       y: buttonY - buttonGap,
-      width: 480,
-      height: 84,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Start Game',
       primary: true,
       onClick: () => this.startGame(),
@@ -92,26 +98,26 @@ export default class MenuScene extends Phaser.Scene {
     startButton.getContainer().setDepth(10)
     this.buttons.push(startButton)
 
-    // Level Select button
+    // Level Select button (responsive)
     const levelSelectButton = new MenuButton({
       scene: this,
-      x: width / 2 - 240,
+      x: width / 2 - buttonWidth / 2,
       y: buttonY,
-      width: 480,
-      height: 84,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Level Select',
       onClick: () => this.showLevelSelectMenu(),
     })
     levelSelectButton.getContainer().setDepth(10)
     this.buttons.push(levelSelectButton)
 
-    // Options button
+    // Options button (responsive)
     const optionsButton = new MenuButton({
       scene: this,
-      x: width / 2 - 240,
+      x: width / 2 - buttonWidth / 2,
       y: buttonY + buttonGap,
-      width: 480,
-      height: 84,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Options',
       onClick: () => this.scene.start('Options'),
     })
@@ -159,21 +165,27 @@ export default class MenuScene extends Phaser.Scene {
     // Background
     this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0, 0).setDepth(5)
 
-    // Title
-    this.add.text(width / 2, 240, 'Select Level', {
+    // Title (responsive font size)
+    const titleFontSize = Math.max(24, Math.min(48, width * 0.025))
+    this.add.text(width / 2, height * 0.1, 'Select Level', {
       fontFamily: 'monospace',
-      fontSize: '60px',
+      fontSize: `${titleFontSize}px`,
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
 
-    // Level cards
+    // Level cards (responsive sizing based on screen dimensions)
     const levels = [1, 2, 3, 4, 5]
-    const cardWidth = 180
-    const cardHeight = 144
-    const gap = 36
+    // Calculate available space and scale cards appropriately
+    const availableWidth = width * 0.9 // Use 90% of screen width
+    const availableHeight = height * 0.6 // Use 60% of screen height
+
+    // Calculate card size: fit 3 columns with gaps
+    const cardWidth = Math.max(80, Math.min(150, (availableWidth - 60) / 3))
+    const cardHeight = Math.max(60, Math.min(120, availableHeight / 2.5))
+    const gap = Math.max(10, Math.min(30, width * 0.015))
     const startX = (width - (cardWidth * 3 + gap * 2)) / 2
-    const startY = height / 2 - 60
+    const startY = height / 2 - cardHeight / 2
 
     const levelCards: MenuCard[] = []
 
@@ -197,13 +209,15 @@ export default class MenuScene extends Phaser.Scene {
       levelCards.push(card)
     })
 
-    // Back button
+    // Back button (responsive sizing with better mobile support)
+    const buttonWidth = Math.max(120, Math.min(240, width * 0.3))
+    const buttonHeight = Math.max(40, Math.min(60, height * 0.08))
     const backButton = new MenuButton({
       scene: this,
-      x: width / 2 - 150,
-      y: height - 180,
-      width: 300,
-      height: 72,
+      x: width / 2 - buttonWidth / 2,
+      y: height - Math.max(50, height * 0.1),
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Back',
       onClick: () => {
         levelCards.forEach((c) => c.destroy())

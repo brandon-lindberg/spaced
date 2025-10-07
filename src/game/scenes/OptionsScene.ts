@@ -24,11 +24,29 @@ export default class OptionsScene extends Phaser.Scene {
     // Background overlay
     this.add.rectangle(0, 0, width, height, 0x0a0d1f, 1).setOrigin(0, 0).setDepth(1000)
 
-    // Panel background - scaled down to fit content
-    const panelWidth = Math.min(800, width - 80)
-    const panelHeight = Math.min(700, height - 100)
+    // Panel background - scaled down to fit content (responsive)
+    const panelWidth = Math.min(800, width * 0.9)
+    const panelHeight = Math.min(700, height * 0.85)
     const panelX = width / 2
     const panelY = height / 2
+    const borderRadius = Math.min(16, width * 0.008)
+    const borderWidth = Math.max(2, width * 0.0016)
+
+    // Responsive font and spacing values
+    const titleFontSize = Math.min(32, width * 0.017)
+    const sectionFontSize = Math.min(24, width * 0.0125)
+    const buttonFontSize = Math.min(18, width * 0.009)
+    const infoFontSize = Math.min(18, width * 0.009)
+    const buttonPadding = { x: Math.min(15, width * 0.008), y: Math.min(8, height * 0.007) }
+    const spacing = {
+      title: Math.min(40, panelHeight * 0.057),
+      start: Math.min(90, panelHeight * 0.129),
+      section: Math.min(40, panelHeight * 0.057),
+      info: Math.min(35, panelHeight * 0.05),
+      button: Math.min(45, panelHeight * 0.064),
+      option: Math.min(50, panelHeight * 0.071),
+    }
+    const buttonOffset = Math.min(150, panelWidth * 0.1875)
 
     const panel = this.add.graphics().setDepth(1001)
     panel.fillStyle(0x0b0e20, 0.95)
@@ -37,84 +55,84 @@ export default class OptionsScene extends Phaser.Scene {
       panelY - panelHeight / 2,
       panelWidth,
       panelHeight,
-      16
+      borderRadius
     )
-    panel.lineStyle(3, 0x3355ff, 1)
+    panel.lineStyle(borderWidth, 0x3355ff, 1)
     panel.strokeRoundedRect(
       panelX - panelWidth / 2,
       panelY - panelHeight / 2,
       panelWidth,
       panelHeight,
-      16
+      borderRadius
     )
 
     // Title
-    this.add.text(panelX, panelY - panelHeight / 2 + 40, '⚙ OPTIONS', {
+    this.add.text(panelX, panelY - panelHeight / 2 + spacing.title, '⚙ OPTIONS', {
       fontFamily: 'monospace',
-      fontSize: '32px',
+      fontSize: `${titleFontSize}px`,
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(1010)
 
     // Options start position
-    const startY = panelY - panelHeight / 2 + 90
+    const startY = panelY - panelHeight / 2 + spacing.start
     let currentY = startY
 
     // Volume section
     this.add.text(panelX, currentY, '🔊 Audio', {
       fontFamily: 'monospace',
-      fontSize: '24px',
+      fontSize: `${sectionFontSize}px`,
       color: '#ffffcc',
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(1010)
-    currentY += 40
+    currentY += spacing.section
 
     const volumeInfo = () => `Music ${Math.round(getOptions().musicVolume * 100)}% | SFX ${Math.round(getOptions().sfxVolume * 100)}%`
     const volText = this.add.text(panelX, currentY, volumeInfo(), {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${infoFontSize}px`,
       color: '#aaaaaa',
       align: 'center',
     }).setOrigin(0.5).setDepth(1010)
-    currentY += 35
+    currentY += spacing.info
 
     // Music controls
-    const musicDown = this.add.text(panelX - 150, currentY, '◄ Music', {
+    const musicDown = this.add.text(panelX - buttonOffset, currentY, '◄ Music', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${buttonFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#222244',
-      padding: { x: 15, y: 8 },
+      padding: buttonPadding,
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    const musicUp = this.add.text(panelX + 150, currentY, 'Music ►', {
+    const musicUp = this.add.text(panelX + buttonOffset, currentY, 'Music ►', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${buttonFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#222244',
-      padding: { x: 15, y: 8 },
+      padding: buttonPadding,
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    currentY += 45
+    currentY += spacing.button
 
     // SFX controls
-    const sfxDown = this.add.text(panelX - 150, currentY, '◄ SFX', {
+    const sfxDown = this.add.text(panelX - buttonOffset, currentY, '◄ SFX', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${buttonFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#222244',
-      padding: { x: 15, y: 8 },
+      padding: buttonPadding,
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    const sfxUp = this.add.text(panelX + 150, currentY, 'SFX ►', {
+    const sfxUp = this.add.text(panelX + buttonOffset, currentY, 'SFX ►', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${buttonFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#222244',
-      padding: { x: 15, y: 8 },
+      padding: buttonPadding,
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    currentY += 65
+    currentY += Math.min(65, panelHeight * 0.093)
 
     const applyVolume = (musicDelta: number, sfxDelta: number) => {
       const o = getOptions()
@@ -149,40 +167,41 @@ export default class OptionsScene extends Phaser.Scene {
     // Gamepad section
     this.add.text(panelX, currentY, '🎮 Gamepad', {
       fontFamily: 'monospace',
-      fontSize: '24px',
+      fontSize: `${sectionFontSize}px`,
       color: '#ffffcc',
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(1010)
-    currentY += 40
+    currentY += spacing.section
 
     // Invert controls
+    const invertOffset = Math.min(130, panelWidth * 0.1625)
     const invertXBtn = this.add.text(
-      panelX - 130,
+      panelX - invertOffset,
       currentY,
       `Invert X: ${getOptions().gamepad?.invertX ? 'ON' : 'OFF'}`,
       {
         fontFamily: 'monospace',
-        fontSize: '18px',
+        fontSize: `${buttonFontSize}px`,
         color: '#ffffff',
         backgroundColor: '#222244',
-        padding: { x: 15, y: 8 },
+        padding: buttonPadding,
       }
     ).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
     const invertYBtn = this.add.text(
-      panelX + 130,
+      panelX + invertOffset,
       currentY,
       `Invert Y: ${getOptions().gamepad?.invertY ? 'ON' : 'OFF'}`,
       {
         fontFamily: 'monospace',
-        fontSize: '18px',
+        fontSize: `${buttonFontSize}px`,
         color: '#ffffff',
         backgroundColor: '#222244',
-        padding: { x: 15, y: 8 },
+        padding: buttonPadding,
       }
     ).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
-    currentY += 50
+    currentY += spacing.option
 
     const toggleInvertX = () => {
       const cur = getOptions().gamepad || { confirm: 0, cancel: 1, pauseStart: 9, pauseSelect: 8, invertX: false, invertY: false }
@@ -216,10 +235,10 @@ export default class OptionsScene extends Phaser.Scene {
     // Gamepad mapping button
     const mapBtn = this.add.text(panelX, currentY, 'Configure Controls', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: `${buttonFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#222244',
-      padding: { x: 15, y: 8 },
+      padding: buttonPadding,
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 
     mapBtn.on('pointerdown', () => this.scene.start('OptionsGamepad'))
@@ -228,15 +247,17 @@ export default class OptionsScene extends Phaser.Scene {
 
     this.toggles.push({ widget: mapBtn, action: () => this.scene.start('OptionsGamepad') })
 
-    currentY += 60
+    currentY += Math.min(60, panelHeight * 0.086)
 
     // Back button
+    const backFontSize = Math.min(20, width * 0.010)
+    const backPadding = { x: Math.min(20, width * 0.010), y: Math.min(10, height * 0.009) }
     const backBtn = this.add.text(panelX, currentY, '← Back to Menu', {
       fontFamily: 'monospace',
-      fontSize: '20px',
+      fontSize: `${backFontSize}px`,
       color: '#ffffff',
       backgroundColor: '#2a3a2a',
-      padding: { x: 20, y: 10 },
+      padding: backPadding,
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(1010).setInteractive({ useHandCursor: true })
 

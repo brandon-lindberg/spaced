@@ -70,13 +70,17 @@ export class MenuCard {
       this.container.add(this.iconImage)
     }
 
-    // Title
-    this.titleText = this.scene.add.text(contentStartX, 72, title, {
+    // Title (centered both horizontally and vertically for better responsiveness)
+    // Scale font size based on card height for better mobile support
+    const titleFontSize = Math.max(12, Math.min(24, height * 0.2))
+    this.titleText = this.scene.add.text(width / 2, height / 2, title, {
       fontFamily: 'monospace',
-      fontSize: '36px',
+      fontSize: `${titleFontSize}px`,
       color: this.isDisabled ? '#888888' : '#ffffff',
       fontStyle: 'bold',
-    })
+      wordWrap: { width: width * 0.9, useAdvancedWrap: true },
+      align: 'center',
+    }).setOrigin(0.5)
     this.container.add(this.titleText)
 
     // Description
@@ -351,12 +355,14 @@ export class MenuButton {
     // Background
     this.drawBackground(this.baseColor)
 
-    // Text
+    // Text (responsive font size based on button height with better mobile support)
+    const fontSize = Math.max(14, Math.min(42, height * 0.55))
     this.text = this.scene.add.text(width / 2, height / 2, text, {
       fontFamily: 'monospace',
-      fontSize: '42px',
+      fontSize: `${fontSize}px`,
       color: '#ffffff',
       fontStyle: 'bold',
+      wordWrap: { width: width * 0.9, useAdvancedWrap: true },
     }).setOrigin(0.5)
     this.container.add(this.text)
   }
@@ -365,15 +371,19 @@ export class MenuButton {
     const { width, height } = this.config
     this.background.clear()
 
+    // Calculate appropriate border radius based on button height (max 30% of height)
+    const borderRadius = Math.min(48, height * 0.3)
+    const strokeWidth = Math.max(6, height * 0.1)
+
     this.background.fillStyle(color, 1)
-    this.background.fillRoundedRect(0, 0, width, height, 48)
+    this.background.fillRoundedRect(0, 0, width, height, borderRadius)
 
-    this.background.lineStyle(12, this.lightenColor(color, 0.3), 1)
-    this.background.strokeRoundedRect(0, 0, width, height, 48)
+    this.background.lineStyle(strokeWidth, this.lightenColor(color, 0.3), 1)
+    this.background.strokeRoundedRect(0, 0, width, height, borderRadius)
 
-    // Highlight effect
+    // Highlight effect (use same border radius as background)
     this.background.fillStyle(0xffffff, 0.1)
-    this.background.fillRoundedRect(0, 0, width, height * 0.4, { tl: 48, tr: 48, bl: 0, br: 0 })
+    this.background.fillRoundedRect(0, 0, width, height * 0.4, { tl: borderRadius, tr: borderRadius, bl: 0, br: 0 })
   }
 
   private setupInteractivity() {
@@ -416,6 +426,10 @@ export class MenuButton {
     const newB = Math.min(255, b + Math.floor(amount * 255))
 
     return (newR << 16) | (newG << 8) | newB
+  }
+
+  setText(text: string) {
+    this.text.setText(text)
   }
 
   getContainer(): Phaser.GameObjects.Container {

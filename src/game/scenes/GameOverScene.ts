@@ -20,41 +20,50 @@ export default class GameOverScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(1000)
 
-    // Game Over title with glitch effect
-    const title = this.add.text(width / 2, height / 2 - 360, '☠️ GAME OVER', {
+    // Game Over title with glitch effect (responsive)
+    const titleFontSize = Math.min(168, width * 0.0875)
+    const shakeOffset = Math.max(6, titleFontSize * 0.071)
+
+    const title = this.add.text(width / 2, height / 2 - height * 0.333, '☠️ GAME OVER', {
       fontFamily: 'monospace',
-      fontSize: '168px',
+      fontSize: `${titleFontSize}px`,
       color: '#ff6666',
       fontStyle: 'bold',
       stroke: '#330000',
-      strokeThickness: 24,
+      strokeThickness: Math.max(12, titleFontSize * 0.143),
     }).setOrigin(0.5).setDepth(1010)
 
     // Subtle shake animation
     this.tweens.add({
       targets: title,
-      x: width / 2 + 12,
+      x: width / 2 + shakeOffset,
       duration: 100,
       yoyo: true,
       repeat: -1,
     })
 
-    // Info text
-    this.add.text(width / 2, height / 2 - 60,
+    // Info text (responsive)
+    const infoFontSize = Math.min(66, width * 0.034)
+    this.add.text(width / 2, height / 2 - height * 0.056,
       'Retry to continue with HP level-ups', {
       fontFamily: 'monospace',
-      fontSize: '66px',
+      fontSize: `${infoFontSize}px`,
       color: '#aaaaaa',
       align: 'center',
     }).setOrigin(0.5).setDepth(1010)
 
+    // Buttons (responsive - two buttons side by side)
+    const buttonWidth = Math.min(600, width * 0.3125)
+    const buttonHeight = Math.min(240, height * 0.222)
+    const buttonGap = Math.min(120, width * 0.0625)
+
     // Retry button
     const retryButton = new MenuButton({
       scene: this,
-      x: width / 2 - 660,
-      y: height / 2 + 240,
-      width: 600,
-      height: 240,
+      x: width / 2 - buttonWidth / 2 - buttonGap / 2,
+      y: height / 2 + height * 0.222,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Retry',
       primary: true,
       onClick: () => this.retry(),
@@ -65,10 +74,10 @@ export default class GameOverScene extends Phaser.Scene {
     // Return to title button
     const titleButton = new MenuButton({
       scene: this,
-      x: width / 2 + 60,
-      y: height / 2 + 240,
-      width: 600,
-      height: 240,
+      x: width / 2 + buttonGap / 2,
+      y: height / 2 + height * 0.222,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Main Menu',
       onClick: () => this.toTitle(),
     })

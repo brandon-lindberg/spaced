@@ -24,7 +24,7 @@ export class PlayerController {
   private lastMoveX = 0
   private lastMoveY = 0
   private lastAimDeg = 0
-  private joy: JoypadState = { active: false, pointerId: null, centerX: 0, centerY: 0, vecX: 0, vecY: 0, radius: 936 }
+  private joy: JoypadState = { active: false, pointerId: null, centerX: 0, centerY: 0, vecX: 0, vecY: 0, radius: 100 }
   private detachHandlers: Array<() => void> = []
 
   constructor(ctx: SceneContext) {
@@ -134,11 +134,18 @@ export class PlayerController {
     return this.lastAimDeg
   }
 
-  handleResize(_width: number, height: number) {
+  handleResize(width: number, height: number) {
     if (this.joy.base && this.joy.thumb) {
-      const x = 1440
-      const y = height - 1440
+      const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
+      const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
+      const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+      const x = margin + radius
+      const y = height - margin - radius
+
+      this.joy.radius = radius
+      this.joy.base.setRadius(radius)
       this.joy.base.setPosition(x, y)
+      this.joy.thumb.setRadius(thumbSize)
       this.joy.thumb.setPosition(x, y)
       this.joy.centerX = x
       this.joy.centerY = y
@@ -156,12 +163,20 @@ export class PlayerController {
     const isMobileDevice = /iPhone|iPad|Android/i.test(navigator.userAgent)
     if (!isMobileDevice) return
     if (this.ctx.getOptions().showTouchJoystick === false) return
-    const x = 1440
-    const y = this.ctx.scale.height - 1440
+
+    const width = this.ctx.scale.width
+    const height = this.ctx.scale.height
+    const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
+    const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
+    const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+    const x = margin + radius
+    const y = height - margin - radius
+
+    this.joy.radius = radius
     this.joy.centerX = x
     this.joy.centerY = y
-    this.joy.base = this.ctx.scene.add.circle(x, y, this.joy.radius, 0xffffff, 0.08).setScrollFactor(0).setDepth(999)
-    this.joy.thumb = this.ctx.scene.add.circle(x, y, 432, 0xffffff, 0.15).setScrollFactor(0).setDepth(1000)
+    this.joy.base = this.ctx.scene.add.circle(x, y, radius, 0xffffff, 0.08).setScrollFactor(0).setDepth(999)
+    this.joy.thumb = this.ctx.scene.add.circle(x, y, thumbSize, 0xffffff, 0.15).setScrollFactor(0).setDepth(1000)
 
     const pointerDown = (p: Phaser.Input.Pointer) => {
       if (this.joy.active) return
