@@ -653,6 +653,7 @@ export default class GameScene extends Phaser.Scene {
         const oy = this.player.y + Math.sin(rad) * 84
         const len = hasBeamLaser ? 840 : 630  // Beam length scaled for 1920x1080 (6x from 140/105)
         const thickness = 2 * Math.pow(1.5, lvl - 1)  // Start at 2px, multiply by 1.5x per level
+        console.log(`[LASER DEBUG] Level: ${lvl}, Length: ${len}px, Thickness: ${thickness}px, Type: ${hasBeamLaser ? 'beam-laser' : 'laser'}`)
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
@@ -875,8 +876,8 @@ export default class GameScene extends Phaser.Scene {
   private spawnBeam(x: number, y: number, angleDeg: number, length: number, thickness: number) {
     const img = this.add.image(x, y, 'beam-tex').setOrigin(0, 0.5).setDepth(900)
     img.rotation = Phaser.Math.DegToRad(angleDeg)
-    // Texture is 1x1, scale to desired length and thickness
-    img.setScale(length, thickness)  // Scale 1x1 texture to exact length x thickness
+    // Texture is 1x1, use setDisplaySize for exact pixel dimensions
+    img.setDisplaySize(length, thickness)
     this.tweens.add({ targets: img, alpha: 0, duration: 120, onComplete: () => img.destroy() })
   }
 
