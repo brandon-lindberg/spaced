@@ -653,7 +653,6 @@ export default class GameScene extends Phaser.Scene {
         const oy = this.player.y + Math.sin(rad) * 84
         const len = hasBeamLaser ? 840 : 630  // Beam length scaled for 1920x1080 (6x from 140/105)
         const thickness = 2 * Math.pow(1.5, lvl - 1)  // Start at 2px, multiply by 1.5x per level
-        console.log(`[LASER DEBUG] Level: ${lvl}, Length: ${len}px, Thickness: ${thickness}px, Type: ${hasBeamLaser ? 'beam-laser' : 'laser'}`)
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite

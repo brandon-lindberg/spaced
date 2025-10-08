@@ -38,7 +38,7 @@ export class EnemyManager {
   initGroup() {
     TextureFactory.ensureEnemyTexture(this.scene, this.enemyTextureKey)
     this.enemies = this.scene.physics.add.group()
-    this.scene.physics.add.collider(this.enemies, this.enemies)
+    // Remove enemy-to-enemy collision to prevent clustering
     return this.enemies
   }
 
@@ -62,8 +62,25 @@ export class EnemyManager {
     else if (ctx.elapsedSec > 45 && roll < 0.45) type = 'chaser'
 
     const viewRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height) * 0.5
-    const inner = viewRadius * 0.9
-    const outer = inner + 480
+
+    // Varied spawn distances - mix of close, medium, and far spawns
+    const spawnRoll = Math.random()
+    let inner: number, outer: number
+
+    if (spawnRoll < 0.3) {
+      // Close spawns (30%) - immediate threat
+      inner = viewRadius * 0.7
+      outer = viewRadius * 0.9
+    } else if (spawnRoll < 0.7) {
+      // Medium spawns (40%) - standard distance
+      inner = viewRadius * 0.9
+      outer = viewRadius * 1.2
+    } else {
+      // Far spawns (30%) - time to prepare
+      inner = viewRadius * 1.2
+      outer = viewRadius * 1.6
+    }
+
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)
     const radius = Phaser.Math.FloatBetween(inner, outer)
     const x = cx + Math.cos(angle) * radius
@@ -205,24 +222,112 @@ export class EnemyManager {
     const despawnRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height)
     const chaseSpeedBase = 40
     const children = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[]
+
     for (const enemy of children) {
       if (!enemy || !enemy.active || !player) continue
       if (!enemy.body) enemy.enableBody(true, enemy.x, enemy.y, true, true)
       const stunUntil = ((enemy as any).stunUntil as number) || 0
       if (this.scene.time.now < stunUntil) continue
+
       const chaseSpeed = ((enemy as any).chase as number) || chaseSpeedBase
       const dx = player.x - enemy.x
       const dy = player.y - enemy.y
-      const len = Math.hypot(dx, dy) || 1
-      enemy.setVelocity((dx / len) * chaseSpeed * 6, (dy / len) * chaseSpeed * 6)
+      const dist = Math.hypot(dx, dy) || 1
+      const enemyType = enemy.texture?.key
+
+      // Anti-kiting: Reduce spacing when enemies cluster (makes kiting harder)
+      let spacingX = 0
+      let spacingY = 0
+      let nearbyCount = 0
+      const spacingRadius = 180
+      for (const other of children) {
+        if (other === enemy || !other.active) continue
+        const odx = enemy.x - other.x
+        const ody = enemy.y - other.y
+        const oDist = Math.hypot(odx, ody)
+        if (oDist < spacingRadius && oDist > 0) {
+          nearbyCount++
+          // Weaker spacing when in groups to maintain threat
+          const pushStrength = (spacingRadius - oDist) / spacingRadius * 0.5
+          spacingX += (odx / oDist) * pushStrength
+          spacingY += (ody / oDist) * pushStrength
+        }
+      }
+
+      // Unique movement patterns per enemy type
+      let vx = 0, vy = 0
+
+      if (enemyType === 'enemy-chaser') {
+        // Chaser: Fast aggressive pursuit with strong weaving - MUCH FASTER
+        const weaveTime = this.scene.time.now / 500
+        const weaveOffset = Math.sin(weaveTime + enemy.x * 0.01) * 0.6
+        const perpX = -dy / dist
+        const perpY = dx / dist
+        vx = (dx / dist + perpX * weaveOffset) * chaseSpeed * 9  // Increased from 6 to 9
+        vy = (dy / dist + perpY * weaveOffset) * chaseSpeed * 9
+      } else if (enemyType === 'enemy-fodder') {
+        // Fodder: Aggressive swarm behavior - rushes in groups
+        const rushDistance = 500
+        const aggressionBonus = Math.min(nearbyCount * 0.3, 2) // Faster when in groups
+
+        if (dist > rushDistance) {
+          // Fast approach when far
+          vx = (dx / dist) * chaseSpeed * (7 + aggressionBonus)
+          vy = (dy / dist) * chaseSpeed * (7 + aggressionBonus)
+        } else {
+          // Erratic close-range attacks
+          const erraticAngle = Math.sin(this.scene.time.now * 0.003 + enemy.x * 0.02) * 1.2
+          const targetAngle = Math.atan2(dy, dx) + erraticAngle
+          vx = Math.cos(targetAngle) * chaseSpeed * (6 + aggressionBonus)
+          vy = Math.sin(targetAngle) * chaseSpeed * (6 + aggressionBonus)
+        }
+      } else if (enemyType === 'enemy-tank') {
+        // Tank: Longer, more frequent charges with prediction
+        const chargeData = (enemy as any).chargeData || { nextCharge: this.scene.time.now + 1500, charging: false }
+        ;(enemy as any).chargeData = chargeData
+
+        if (this.scene.time.now >= chargeData.nextCharge && !chargeData.charging && dist < 800) {
+          chargeData.charging = true
+          chargeData.chargeEndTime = this.scene.time.now + 800  // Increased from 400 to 800
+          chargeData.nextCharge = this.scene.time.now + Phaser.Math.Between(2000, 3500)  // More frequent
+          // Predict player position for smarter charging
+          const playerVelX = (player.body?.velocity.x || 0)
+          const playerVelY = (player.body?.velocity.y || 0)
+          chargeData.targetX = player.x + playerVelX * 0.3
+          chargeData.targetY = player.y + playerVelY * 0.3
+        }
+
+        if (chargeData.charging && this.scene.time.now < chargeData.chargeEndTime) {
+          // Charging at predicted position
+          const cdx = (chargeData.targetX || player.x) - enemy.x
+          const cdy = (chargeData.targetY || player.y) - enemy.y
+          const cDist = Math.hypot(cdx, cdy) || 1
+          vx = (cdx / cDist) * chaseSpeed * 15  // Increased from 12 to 15
+          vy = (cdy / cDist) * chaseSpeed * 15
+        } else {
+          chargeData.charging = false
+          // Faster base speed
+          vx = (dx / dist) * chaseSpeed * 4.5  // Increased from 3 to 4.5
+          vy = (dy / dist) * chaseSpeed * 4.5
+        }
+      } else {
+        // Default: direct chase
+        vx = (dx / dist) * chaseSpeed * 6
+        vy = (dy / dist) * chaseSpeed * 6
+      }
+
+      // Apply reduced spacing force (makes clustering more dangerous)
+      enemy.setVelocity(vx + spacingX * 40, vy + spacingY * 40)
+
+      // Rotation
       if (enemy.texture && (enemy.texture.key === 'enemy-chaser' || enemy.texture.key === 'enemy-fodder' || enemy.texture.key === 'enemy-tank')) {
-        const moveX = dx / len
-        const moveY = dy / len
-        if (Math.hypot(moveX, moveY) > 0.1) {
-          const angle = Math.atan2(moveY, moveX) + Math.PI / 2
+        if (Math.hypot(vx, vy) > 0.1) {
+          const angle = Math.atan2(vy, vx) + Math.PI / 2
           enemy.setRotation(angle)
         }
       }
+
+      // Despawn if too far
       const dcx = enemy.x - cx
       const dcy = enemy.y - cy
       const distCam = Math.hypot(dcx, dcy)
