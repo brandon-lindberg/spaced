@@ -136,9 +136,9 @@ export class PlayerController {
 
   handleResize(width: number, height: number) {
     if (this.joy.base && this.joy.thumb) {
-      const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
-      const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
-      const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+      const margin = Math.max(107, Math.min(160, Math.min(width, height) * 0.133))
+      const radius = Math.max(80, Math.min(133, Math.min(width, height) * 0.107))
+      const thumbSize = Math.max(40, Math.min(67, radius * 0.5))
       const x = margin + radius
       const y = height - margin - radius
 
@@ -166,9 +166,9 @@ export class PlayerController {
 
     const width = this.ctx.scale.width
     const height = this.ctx.scale.height
-    const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
-    const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
-    const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+    const margin = Math.max(107, Math.min(160, Math.min(width, height) * 0.133))
+    const radius = Math.max(80, Math.min(133, Math.min(width, height) * 0.107))
+    const thumbSize = Math.max(40, Math.min(67, radius * 0.5))
     const x = margin + radius
     const y = height - margin - radius
 
