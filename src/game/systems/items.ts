@@ -47,7 +47,7 @@ export const defaultBaseStats: BaseStats = {
   bulletDamage: 1,
   multishot: 0,  // Base 0, splitter adds spread projectiles
   speedMultiplier: 1,
-  magnetRadius: 16,
+  magnetRadius: 96,  // Scaled from 16 for 1920x1080 resolution (6x)
   spreadDeg: 10,
   inlineExtraProjectiles: 0,
 }
@@ -150,7 +150,7 @@ export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey,
       stats.speedMultiplier += 0.1 * level
       break
     case 'magnet-core':
-      stats.magnetRadius += 24 * level
+      stats.magnetRadius += 144 * level  // Scaled from 24 for 1920x1080 resolution (6x)
       break
     case 'ammo-loader':
       stats.fireRate *= Math.pow(1.15, level)

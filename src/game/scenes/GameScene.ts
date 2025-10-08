@@ -409,15 +409,15 @@ export default class GameScene extends Phaser.Scene {
     if (!this.textures.exists('beam-tex')) {
       const g = this.add.graphics()
       g.fillStyle(0xff66ff, 1)
-      g.fillRect(0, 0, 48, 12)
-      g.generateTexture('beam-tex', 48, 12)
+      g.fillRect(0, 0, 100, 2)
+      g.generateTexture('beam-tex', 100, 2)
       g.destroy()
     }
     if (!this.textures.exists('blaster-tex')) {
       const g = this.add.graphics(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,108,108); g.generateTexture('blaster-tex',108,108); g.destroy()
     }
     if (!this.textures.exists('laser-shot-tex')) {
-      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,12,12); g.generateTexture('laser-shot-tex',12,12); g.destroy()
+      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,4,4); g.generateTexture('laser-shot-tex',4,4); g.destroy()
     }
     if (!this.textures.exists('explosion-tex')) {
       const s = 1152
@@ -659,9 +659,9 @@ export default class GameScene extends Phaser.Scene {
           shot.setActive(true).setVisible(true)
           shot.enableBody(true, ox, oy, true, true)
           shot.setDepth(5)
-          // Texture is 12x12, collision circle radius 6
-          shot.body?.setSize(12, 12, true)
-          shot.setCircle(6, 0, 0)
+          // Texture is 4x4, collision circle radius 2
+          shot.body?.setSize(4, 4, true)
+          shot.setCircle(2, 0, 0)
           shot.setOrigin(0.5, 0.5)
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
@@ -873,8 +873,8 @@ export default class GameScene extends Phaser.Scene {
   private spawnBeam(x: number, y: number, angleDeg: number, length: number, thickness: number) {
     const img = this.add.image(x, y, 'beam-tex').setOrigin(0, 0.5).setDepth(900)
     img.rotation = Phaser.Math.DegToRad(angleDeg)
-    // Texture is 48x12, scale to desired length and thickness
-    img.setScale(length / 48, thickness / 12)
+    // Texture is 100x2, scale to desired length and thickness
+    img.setScale(length / 100, Math.min(thickness / 2, 4))  // Cap thickness scale at 4x to prevent oversized beams
     this.tweens.add({ targets: img, alpha: 0, duration: 120, onComplete: () => img.destroy() })
   }
 

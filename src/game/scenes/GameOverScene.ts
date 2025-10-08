@@ -20,8 +20,8 @@ export default class GameOverScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(1000)
 
-    // Game Over title with glitch effect (responsive)
-    const titleFontSize = Math.min(168, width * 0.0875)
+    // Game Over title with glitch effect (increased for readability)
+    const titleFontSize = Math.max(64, Math.min(128, width * 0.0875))
     const shakeOffset = Math.max(6, titleFontSize * 0.071)
 
     const title = this.add.text(width / 2, height / 2 - height * 0.333, '☠️ GAME OVER', {
@@ -30,7 +30,7 @@ export default class GameOverScene extends Phaser.Scene {
       color: '#ff6666',
       fontStyle: 'bold',
       stroke: '#330000',
-      strokeThickness: Math.max(12, titleFontSize * 0.143),
+      strokeThickness: Math.max(8, titleFontSize * 0.1),
     }).setOrigin(0.5).setDepth(1010)
 
     // Subtle shake animation
@@ -42,8 +42,8 @@ export default class GameOverScene extends Phaser.Scene {
       repeat: -1,
     })
 
-    // Info text (responsive)
-    const infoFontSize = Math.min(66, width * 0.034)
+    // Info text (responsive - increased for readability)
+    const infoFontSize = Math.max(18, Math.min(88, width * 0.045))
     this.add.text(width / 2, height / 2 - height * 0.056,
       'Retry to continue with HP level-ups', {
       fontFamily: 'monospace',
@@ -52,16 +52,21 @@ export default class GameOverScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5).setDepth(1010)
 
-    // Buttons (responsive - two buttons side by side)
-    const buttonWidth = Math.min(600, width * 0.3125)
-    const buttonHeight = Math.min(240, height * 0.222)
-    const buttonGap = Math.min(120, width * 0.0625)
+    // Buttons (responsive with proper margins)
+    const margin = Math.max(20, width * 0.02)
+    const buttonGap = Math.max(27, Math.min(80, width * 0.042))
+    const maxButtonWidth = (width - margin * 2 - buttonGap) / 2
+    const buttonWidth = Math.max(200, Math.min(maxButtonWidth, width * 0.35))
+    const buttonHeight = Math.max(60, Math.min(160, height * 0.148))
 
-    // Retry button
+    const verticalMargin = Math.max(20, height * 0.02)
+    const buttonY = Math.min(height / 2 + height * 0.222, height - verticalMargin - buttonHeight / 2)
+
+    // Retry button (properly positioned left of center)
     const retryButton = new MenuButton({
       scene: this,
-      x: width / 2 - buttonWidth / 2 - buttonGap / 2,
-      y: height / 2 + height * 0.222,
+      x: width / 2 - buttonGap / 2 - buttonWidth,
+      y: buttonY,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Retry',
@@ -71,11 +76,11 @@ export default class GameOverScene extends Phaser.Scene {
     retryButton.getContainer().setDepth(1010)
     this.buttons.push(retryButton)
 
-    // Return to title button
+    // Return to title button (properly positioned right of center)
     const titleButton = new MenuButton({
       scene: this,
       x: width / 2 + buttonGap / 2,
-      y: height / 2 + height * 0.222,
+      y: buttonY,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Main Menu',
