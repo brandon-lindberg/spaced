@@ -54,39 +54,49 @@ export default class ShopScene extends Phaser.Scene {
       borderWidth: 12,
     })
 
-    // Header
-    this.add.text(width / 2, 48, 'Shop', {
+    // Header (responsive)
+    const titleFontSize = Math.max(24, Math.min(60, width * 0.05))
+    const topMargin = Math.max(20, Math.min(40, height * 0.037))
+    this.add.text(width / 2, topMargin, '🛒 SHOP', {
       fontFamily: 'monospace',
-      fontSize: '48px',
-      color: '#ffffff',
+      fontSize: `${titleFontSize}px`,
+      color: '#ffdd66',
       fontStyle: 'bold',
+      stroke: '#aa6600',
+      strokeThickness: Math.max(3, titleFontSize * 0.06),
     }).setOrigin(0.5, 0).setDepth(1010)
 
-    // Gold and inventory display
-    this.goldText = this.add.text(width - 24, 48, '', {
+    // Gold and inventory display (responsive)
+    const goldFontSize = Math.max(16, Math.min(32, width * 0.026))
+    const invFontSize = Math.max(12, Math.min(20, width * 0.016))
+    const sideMargin = Math.max(15, Math.min(30, width * 0.015))
+
+    this.goldText = this.add.text(width - sideMargin, topMargin, '', {
       fontFamily: 'monospace',
-      fontSize: '36px',
+      fontSize: `${goldFontSize}px`,
       color: '#ffcc66',
       fontStyle: 'bold',
     }).setOrigin(1, 0).setDepth(1010)
 
-    this.invText = this.add.text(24, height - 120, '', {
+    this.invText = this.add.text(sideMargin, height - Math.max(80, Math.min(120, height * 0.11)), '', {
       fontFamily: 'monospace',
-      fontSize: '30px',
-      color: '#cccccc',
+      fontSize: `${invFontSize}px`,
+      color: '#e0e0e0',
     }).setOrigin(0, 0).setDepth(1010)
 
     this.updateHUD()
     this.buildShopContent()
 
-    // Continue button (fixed at bottom)
-    const buttonY = height - 72
+    // Continue button (fixed at bottom, responsive)
+    const buttonWidth = Math.max(200, Math.min(420, width * 0.35))
+    const buttonHeight = Math.max(40, Math.min(60, height * 0.056))
+    const buttonY = height - Math.max(50, Math.min(72, height * 0.067))
     this.continueButton = new MenuButton({
       scene: this,
-      x: width / 2 - 210,
+      x: width / 2 - buttonWidth / 2,
       y: buttonY,
-      width: 420,
-      height: 60,
+      width: buttonWidth,
+      height: buttonHeight,
       text: 'Continue',
       primary: true,
       onClick: () => this.continue(),

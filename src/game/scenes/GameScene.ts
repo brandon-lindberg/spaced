@@ -409,15 +409,15 @@ export default class GameScene extends Phaser.Scene {
     if (!this.textures.exists('beam-tex')) {
       const g = this.add.graphics()
       g.fillStyle(0xff66ff, 1)
-      g.fillRect(0, 0, 288, 72)
-      g.generateTexture('beam-tex', 288, 72)
+      g.fillRect(0, 0, 48, 12)
+      g.generateTexture('beam-tex', 48, 12)
       g.destroy()
     }
     if (!this.textures.exists('blaster-tex')) {
       const g = this.add.graphics(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,108,108); g.generateTexture('blaster-tex',108,108); g.destroy()
     }
     if (!this.textures.exists('laser-shot-tex')) {
-      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,72,72); g.generateTexture('laser-shot-tex',72,72); g.destroy()
+      const g = this.add.graphics(); g.fillStyle(0xff66ff, 1); g.fillRect(0,0,12,12); g.generateTexture('laser-shot-tex',12,12); g.destroy()
     }
     if (!this.textures.exists('explosion-tex')) {
       const s = 1152
@@ -647,10 +647,10 @@ export default class GameScene extends Phaser.Scene {
         this.laserBeamAccum -= 1 / Math.max(0.1, rate)
         const a = this.laserAngle
         const rad = Phaser.Math.DegToRad(a)
-        const ox = this.player.x + Math.cos(rad) * 84
-        const oy = this.player.y + Math.sin(rad) * 84
-        const len = hasBeamLaser ? 200 : 150  // Scaled down from 840/630
-        const thickness = (hasBeamLaser ? 8 : 6) + (lvl - 1) * (hasBeamLaser ? 3 : 2)  // Scaled down from 36/24
+        const ox = this.player.x + Math.cos(rad) * 14
+        const oy = this.player.y + Math.sin(rad) * 14
+        const len = hasBeamLaser ? 140 : 105  // Beam length in pixels
+        const thickness = (hasBeamLaser ? 6 : 4) + (lvl - 1) * (hasBeamLaser ? 2 : 1)  // Beam thickness in pixels
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
@@ -659,8 +659,10 @@ export default class GameScene extends Phaser.Scene {
           shot.setActive(true).setVisible(true)
           shot.enableBody(true, ox, oy, true, true)
           shot.setDepth(5)
+          // Texture is 12x12, collision circle radius 6
           shot.body?.setSize(12, 12, true)
           shot.setCircle(6, 0, 0)
+          shot.setOrigin(0.5, 0.5)
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
           shot.setVelocity(Math.cos(vrad) * vs * 6, Math.sin(vrad) * vs * 6)
@@ -871,8 +873,8 @@ export default class GameScene extends Phaser.Scene {
   private spawnBeam(x: number, y: number, angleDeg: number, length: number, thickness: number) {
     const img = this.add.image(x, y, 'beam-tex').setOrigin(0, 0.5).setDepth(900)
     img.rotation = Phaser.Math.DegToRad(angleDeg)
-    // scale X stretches the beam texture; scale Y controls visual thickness
-    img.setScale(length / 8, Math.max(1, thickness / 3))
+    // Texture is 48x12, scale to desired length and thickness
+    img.setScale(length / 48, thickness / 12)
     this.tweens.add({ targets: img, alpha: 0, duration: 120, onComplete: () => img.destroy() })
   }
 
@@ -881,7 +883,7 @@ export default class GameScene extends Phaser.Scene {
     const rad = Phaser.Math.DegToRad(angleDeg)
     const dirx = Math.cos(rad)
     const diry = Math.sin(rad)
-    thickness = Math.max(6, thickness)  // Scaled down from 24
+    thickness = Math.max(4, thickness)  // Minimum thickness
     // Draw corridor for the beam hitbox (always visible briefly)
     const g = this.add.graphics().setDepth(999)
     g.fillStyle(0x00ffff, 0.15)

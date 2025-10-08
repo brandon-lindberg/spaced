@@ -72,13 +72,13 @@ export class MenuSystem {
     // Calculate responsive layout
     this.layout = this.calculateLayout(config.width)
 
-    // Define scroll area (where content can scroll)
-    const headerHeight = 288
-    const footerHeight = 480
+    // Define scroll area (where content can scroll) - responsive
+    const headerHeight = Math.max(80, Math.min(140, config.height * 0.13))
+    const footerHeight = Math.max(100, Math.min(200, config.height * 0.185))
     this.scrollArea = new Phaser.Geom.Rectangle(
-      this.config.padding!,
+      this.layout.padding,
       headerHeight,
-      config.width - this.config.padding! * 2,
+      config.width - this.layout.padding * 2,
       config.height - headerHeight - footerHeight
     )
 
@@ -96,28 +96,32 @@ export class MenuSystem {
     else if (width >= 600) columns = 2
     else columns = 1
 
-    const padding = width < 600 ? 72 : 96
-    const gap = width < 600 ? 48 : 72
+    const padding = Math.max(30, Math.min(96, width * 0.05))
+    const gap = Math.max(20, Math.min(72, width * 0.0375))
 
     const availableWidth = width - padding * 2 - gap * (columns - 1)
     const cardWidth = Math.floor(availableWidth / columns)
-    const cardHeight = Math.min(720, cardWidth * 0.7)
+    const cardHeight = Math.max(180, Math.min(320, cardWidth * 0.75))
 
     return { columns, cardWidth, cardHeight, gap, padding }
   }
 
   private createBackground() {
-    const { width, height, backgroundColor, backgroundAlpha, borderColor, borderWidth } = this.config
+    const { width, height, backgroundColor, backgroundAlpha, borderColor } = this.config
 
     // Background overlay
     this.background = this.scene.add.rectangle(0, 0, width, height, backgroundColor!, backgroundAlpha!)
       .setOrigin(0, 0)
       .setDepth(999)
 
-    // Border frame
+    // Border frame (responsive)
+    const borderMargin = Math.max(15, Math.min(36, width * 0.019))
+    const borderRadius = Math.max(20, Math.min(48, width * 0.025))
+    const responsiveBorderWidth = Math.max(4, Math.min(12, width * 0.006))
+
     this.border = this.scene.add.graphics().setDepth(1001)
-    this.border.lineStyle(borderWidth!, borderColor!, 1)
-    this.border.strokeRoundedRect(36, 36, width - 72, height - 72, 48)
+    this.border.lineStyle(responsiveBorderWidth, borderColor!, 1)
+    this.border.strokeRoundedRect(borderMargin, borderMargin, width - borderMargin * 2, height - borderMargin * 2, borderRadius)
   }
 
   private createScrollMask() {
@@ -135,16 +139,20 @@ export class MenuSystem {
   }
 
   private createScrollbar() {
-    const x = this.scrollArea.x + this.scrollArea.width + 48
+    const scrollbarWidth = Math.max(12, Math.min(36, this.config.width * 0.019))
+    const scrollbarMargin = Math.max(15, Math.min(48, this.config.width * 0.025))
+    const x = this.scrollArea.x + this.scrollArea.width + scrollbarMargin
     const y = this.scrollArea.y
     const height = this.scrollArea.height
 
-    this.scrollbarTrack = this.scene.add.rectangle(x, y, 36, height, 0x111122, 0.45)
+    this.scrollbarTrack = this.scene.add.rectangle(x, y, scrollbarWidth, height, 0x111122, 0.45)
       .setOrigin(0, 0)
       .setDepth(1002)
       .setVisible(false)
 
-    this.scrollbarThumb = this.scene.add.rectangle(x + 6, y, 24, 144, 0x666688, 0.9)
+    const thumbWidth = Math.max(8, scrollbarWidth * 0.67)
+    const thumbOffset = (scrollbarWidth - thumbWidth) / 2
+    this.scrollbarThumb = this.scene.add.rectangle(x + thumbOffset, y, thumbWidth, 144, 0x666688, 0.9)
       .setOrigin(0, 0)
       .setDepth(1003)
       .setVisible(false)

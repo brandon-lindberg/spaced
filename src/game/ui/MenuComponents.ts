@@ -465,19 +465,22 @@ export class MenuSection {
   private createSection() {
     const { title, width } = this.config
 
-    // Title
+    // Title (responsive)
+    const fontSize = Math.max(18, Math.min(32, width * 0.02))
+    const dividerY = Math.max(30, Math.min(60, fontSize * 1.67))
     this.titleText = this.scene.add.text(0, 0, title, {
       fontFamily: 'monospace',
-      fontSize: '36px',
-      color: '#ffffcc',
+      fontSize: `${fontSize}px`,
+      color: '#ffdd66',
       fontStyle: 'bold',
     })
     this.container.add(this.titleText)
 
-    // Divider line
+    // Divider line (responsive)
+    const lineWidth = Math.max(2, Math.min(6, width * 0.003))
     this.divider = this.scene.add.graphics()
-    this.divider.lineStyle(6, 0x444466, 0.6)
-    this.divider.lineBetween(0, 60, width, 60)
+    this.divider.lineStyle(lineWidth, 0x666688, 0.7)
+    this.divider.lineBetween(0, dividerY, width, dividerY)
     this.container.add(this.divider)
   }
 
@@ -486,7 +489,9 @@ export class MenuSection {
   }
 
   getHeight(): number {
-    return 84
+    const { width } = this.config
+    const fontSize = Math.max(18, Math.min(32, width * 0.02))
+    return Math.max(45, Math.min(84, fontSize * 2.33))
   }
 
   destroy() {
