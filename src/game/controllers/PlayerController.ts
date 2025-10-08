@@ -38,7 +38,9 @@ export class PlayerController {
     sprite.setCollideWorldBounds(false)
     sprite.setScale(0.1640625) // 28px ship * 6 = 168px ship
     sprite.setOrigin(0.5, 0.5)
-    sprite.body?.setSize(60, 60, true)
+    // Set collision body to match visual sprite size (168px ship)
+    sprite.body?.setSize(168, 168, true)
+    sprite.body?.setCircle(84) // Circular collision with radius 84 (half of 168px)
     this.ctx.cameras.main.startFollow(sprite, true, 0.15, 0.15)
 
     this.player = sprite
@@ -136,9 +138,9 @@ export class PlayerController {
 
   handleResize(width: number, height: number) {
     if (this.joy.base && this.joy.thumb) {
-      const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
-      const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
-      const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+      const margin = Math.max(107, Math.min(160, Math.min(width, height) * 0.133))
+      const radius = Math.max(80, Math.min(133, Math.min(width, height) * 0.107))
+      const thumbSize = Math.max(40, Math.min(67, radius * 0.5))
       const x = margin + radius
       const y = height - margin - radius
 
@@ -166,9 +168,9 @@ export class PlayerController {
 
     const width = this.ctx.scale.width
     const height = this.ctx.scale.height
-    const margin = Math.max(80, Math.min(120, Math.min(width, height) * 0.1))
-    const radius = Math.max(60, Math.min(100, Math.min(width, height) * 0.08))
-    const thumbSize = Math.max(30, Math.min(50, radius * 0.5))
+    const margin = Math.max(107, Math.min(160, Math.min(width, height) * 0.133))
+    const radius = Math.max(80, Math.min(133, Math.min(width, height) * 0.107))
+    const thumbSize = Math.max(40, Math.min(67, radius * 0.5))
     const x = margin + radius
     const y = height - margin - radius
 

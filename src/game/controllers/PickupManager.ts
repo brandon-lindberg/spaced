@@ -75,8 +75,10 @@ export class PickupManager {
     const xp = this.xpGroup.create(x, y, key) as Phaser.Physics.Arcade.Sprite
     if (!xp) return
     xp.setActive(true).setVisible(true)
-    // Scale XP gems to 21px (texture is 6px, so scale to 3.5x = 21px)
-    xp.setScale(3.5)
+    // Scale XP gems to 28px (texture is 6px, so scale to 4.66x ≈ 28px) - increased by 1/3 from 21px
+    const spriteSize = 28
+    xp.setDisplaySize(spriteSize, spriteSize)
+    xp.refreshBody()
     xp.setData('kind', elite ? 'xp-elite' : 'xp')
     if (customValue !== undefined) {
       xp.setData('customXP', customValue)
@@ -86,9 +88,10 @@ export class PickupManager {
     if (customColor !== undefined) {
       xp.setTint(customColor)
     }
-    // Set circular collision body - use radius 15 for 21px sprite (slightly larger for easier pickup)
+    // Set circular collision body to match sprite size - radius 14 for 28px sprite
     if (xp.body) {
-      (xp.body as Phaser.Physics.Arcade.Body).setCircle(15)
+      (xp.body as Phaser.Physics.Arcade.Body).setCircle(14)
+      xp.body.enable = true
     }
     if (elite) {
       this.scene.tweens.add({ targets: xp, alpha: 0.85, yoyo: true, duration: 520, repeat: -1, ease: 'Sine.easeInOut' })
@@ -100,16 +103,18 @@ export class PickupManager {
     const gold = this.goldGroup.create(x, y, key) as Phaser.Physics.Arcade.Sprite
     if (!gold) return
     gold.setActive(true).setVisible(true)
-    // Scale gold coins to 21px (normal texture is 6px = 3.5x, elite is 8px = 2.625x)
-    const baseScale = elite ? 2.625 : 3.5
-    gold.setScale(baseScale)
+    // Scale gold coins to 28px - increased by 1/3 from 21px
+    const spriteSize = 28
+    gold.setDisplaySize(spriteSize, spriteSize)
+    gold.refreshBody()
     gold.setData('kind', 'gold')
-    // Set circular collision body - use radius 15 for 21px sprite (slightly larger for easier pickup)
+    // Set circular collision body to match sprite size - radius 14 for 28px sprite
     if (gold.body) {
-      (gold.body as Phaser.Physics.Arcade.Body).setCircle(15)
+      (gold.body as Phaser.Physics.Arcade.Body).setCircle(14)
+      gold.body.enable = true
     }
     if (elite) {
-      this.scene.tweens.add({ targets: gold, scale: { from: baseScale, to: baseScale * 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
+      this.scene.tweens.add({ targets: gold, scale: { from: 1, to: 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
     }
   }
 
@@ -125,14 +130,16 @@ export class PickupManager {
     const health = this.healthGroup.create(x, y, 'health-pack') as Phaser.Physics.Arcade.Sprite
     if (!health) return
     health.setActive(true).setVisible(true)
-    // Scale health packs to 28px (texture is 7px, so scale to 4x = 28px)
-    const baseScale = 4
-    health.setScale(baseScale)
-    // Set circular collision body - use radius 18 for 28px sprite (slightly larger for easier pickup)
+    // Scale health packs to 37px - increased by 1/3 from 28px
+    const spriteSize = 37
+    health.setDisplaySize(spriteSize, spriteSize)
+    health.refreshBody()
+    // Set circular collision body to match sprite size - radius 18.5 for 37px sprite
     if (health.body) {
-      (health.body as Phaser.Physics.Arcade.Body).setCircle(18)
+      (health.body as Phaser.Physics.Arcade.Body).setCircle(18.5)
+      health.body.enable = true
     }
-    this.scene.tweens.add({ targets: health, scale: baseScale * 1.15, yoyo: true, duration: 500, repeat: -1, ease: 'Sine.easeInOut' })
+    this.scene.tweens.add({ targets: health, scale: 1.15, yoyo: true, duration: 500, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
   spawnPowerup(x: number, y: number) {
@@ -140,11 +147,14 @@ export class PickupManager {
     if (!p) return
     p.setActive(true).setVisible(true)
     p.setTint(0x22ddaa)
-    // Scale powerup chips to 28px (texture is 8px, so scale to 3.5x = 28px)
-    p.setScale(3.5)
-    // Set circular collision body - use radius 18 for 28px sprite (slightly larger for easier pickup)
+    // Scale powerup chips to 37px - increased by 1/3 from 28px
+    const spriteSize = 37
+    p.setDisplaySize(spriteSize, spriteSize)
+    p.refreshBody()
+    // Set circular collision body to match sprite size - radius 18.5 for 37px sprite
     if (p.body) {
-      (p.body as Phaser.Physics.Arcade.Body).setCircle(18)
+      (p.body as Phaser.Physics.Arcade.Body).setCircle(18.5)
+      p.body.enable = true
     }
     this.scene.tweens.add({ targets: p, y: p.y - 12, yoyo: true, duration: 450, repeat: -1, ease: 'Sine.easeInOut' })
     this.scene.tweens.add({ targets: p, alpha: 0.7, yoyo: true, duration: 600, repeat: -1, ease: 'Sine.easeInOut' })

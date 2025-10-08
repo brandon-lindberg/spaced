@@ -58,9 +58,9 @@ export class MenuCard {
     // Background with rounded corners and gradient effect
     this.drawBackground(this.baseColor)
 
-    // Icon (if provided) - centered at top of card with responsive size
-    const iconSize = Math.max(40, Math.min(80, height * 0.25))
-    const iconY = Math.max(30, height * 0.25)
+    // Icon (if provided) - centered at top of card with increased size
+    const iconSize = Math.max(53, Math.min(107, height * 0.33))
+    const iconY = Math.max(40, height * 0.25)
 
     if (icon && this.scene.textures.exists(icon)) {
       this.iconImage = this.scene.add.image(width / 2, iconY, icon)
@@ -69,9 +69,9 @@ export class MenuCard {
       this.container.add(this.iconImage)
     }
 
-    // Title (centered below icon)
-    const titleFontSize = Math.max(12, Math.min(20, height * 0.11))
-    const titleY = icon ? iconY + iconSize / 2 + Math.max(15, height * 0.08) : height * 0.35
+    // Title (centered below icon) - increased for readability
+    const titleFontSize = Math.max(16, Math.min(27, height * 0.11))
+    const titleY = icon ? iconY + iconSize / 2 + Math.max(20, height * 0.08) : height * 0.35
     this.titleText = this.scene.add.text(width / 2, titleY, title, {
       fontFamily: 'monospace',
       fontSize: `${titleFontSize}px`,
@@ -82,15 +82,15 @@ export class MenuCard {
     }).setOrigin(0.5, 0)
     this.container.add(this.titleText)
 
-    // Description (responsive font size)
+    // Description (increased significantly for readability)
     if (description) {
-      const descFontSize = Math.max(10, Math.min(16, height * 0.08))
+      const descFontSize = Math.max(13, Math.min(21, height * 0.088))
       const descY = height * 0.65
       this.descriptionText = this.scene.add.text(width / 2, descY, description, {
         fontFamily: 'monospace',
         fontSize: `${descFontSize}px`,
         color: this.isDisabled ? '#666666' : '#e0e0e0',
-        wordWrap: { width: width * 0.85, useAdvancedWrap: true },
+        wordWrap: { width: width * 0.9, useAdvancedWrap: true },
         align: 'center',
       }).setOrigin(0.5, 0)
       this.container.add(this.descriptionText)
@@ -465,19 +465,22 @@ export class MenuSection {
   private createSection() {
     const { title, width } = this.config
 
-    // Title
+    // Title (responsive)
+    const fontSize = Math.max(18, Math.min(32, width * 0.02))
+    const dividerY = Math.max(30, Math.min(60, fontSize * 1.67))
     this.titleText = this.scene.add.text(0, 0, title, {
       fontFamily: 'monospace',
-      fontSize: '36px',
-      color: '#ffffcc',
+      fontSize: `${fontSize}px`,
+      color: '#ffdd66',
       fontStyle: 'bold',
     })
     this.container.add(this.titleText)
 
-    // Divider line
+    // Divider line (responsive)
+    const lineWidth = Math.max(2, Math.min(6, width * 0.003))
     this.divider = this.scene.add.graphics()
-    this.divider.lineStyle(6, 0x444466, 0.6)
-    this.divider.lineBetween(0, 60, width, 60)
+    this.divider.lineStyle(lineWidth, 0x666688, 0.7)
+    this.divider.lineBetween(0, dividerY, width, dividerY)
     this.container.add(this.divider)
   }
 
@@ -486,7 +489,9 @@ export class MenuSection {
   }
 
   getHeight(): number {
-    return 84
+    const { width } = this.config
+    const fontSize = Math.max(18, Math.min(32, width * 0.02))
+    return Math.max(45, Math.min(84, fontSize * 2.33))
   }
 
   destroy() {

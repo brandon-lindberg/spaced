@@ -30,15 +30,15 @@ export default class MenuScene extends Phaser.Scene {
     // Background
     this.add.rectangle(0, 0, width, height, 0x0a0d1f, 1).setOrigin(0, 0)
 
-    // Title with glow (responsive sizing with better mobile support)
-    const titleFontSize = Math.max(36, Math.min(96, width * 0.08))
+    // Title with glow (increased for mobile readability)
+    const titleFontSize = Math.max(48, Math.min(128, width * 0.107))
     const title = this.add.text(width / 2, height * 0.2, 'SPACED', {
       fontFamily: 'monospace',
       fontSize: `${titleFontSize}px`,
       color: '#66ccff',
       fontStyle: 'bold',
       stroke: '#0044aa',
-      strokeThickness: Math.max(3, titleFontSize * 0.125),
+      strokeThickness: Math.max(4, titleFontSize * 0.125),
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
 
     // Pulse animation
@@ -52,9 +52,9 @@ export default class MenuScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     })
 
-    // Bank gold display (responsive sizing with better mobile support)
-    const bankFontSize = Math.max(18, Math.min(36, width * 0.025))
-    const bankPadding = Math.max(8, Math.min(24, width * 0.0125))
+    // Bank gold display (increased for mobile readability)
+    const bankFontSize = Math.max(24, Math.min(48, width * 0.033))
+    const bankPadding = Math.max(11, Math.min(32, width * 0.0167))
     this.add.text(bankPadding, height - bankPadding, `Bank: ${getBankGold()}g`, {
       fontFamily: 'monospace',
       fontSize: `${bankFontSize}px`,
@@ -79,10 +79,10 @@ export default class MenuScene extends Phaser.Scene {
 
   private createMainMenu(width: number, height: number) {
     const buttonY = height / 2
-    // Responsive button sizing with better mobile support
-    const buttonWidth = Math.max(200, Math.min(480, width * 0.4))
-    const buttonHeight = Math.max(50, Math.min(84, height * 0.078))
-    const buttonGap = Math.max(60, Math.min(96, height * 0.089))
+    // Button sizing (increased for mobile readability)
+    const buttonWidth = Math.max(267, Math.min(640, width * 0.533))
+    const buttonHeight = Math.max(67, Math.min(112, height * 0.104))
+    const buttonGap = Math.max(80, Math.min(128, height * 0.119))
 
     // Start Game button (responsive)
     const startButton = new MenuButton({
