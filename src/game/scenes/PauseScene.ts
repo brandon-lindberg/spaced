@@ -27,13 +27,13 @@ export default class PauseScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(1000)
 
-    // Panel background (responsive with mobile support)
-    const panelWidth = Math.max(280, Math.min(600, width * 0.85))
-    const panelHeight = Math.max(350, Math.min(520, height * 0.85))
+    // Panel background (increased size and proper padding)
+    const panelWidth = Math.max(373, Math.min(800, width * 0.9))
+    const panelHeight = Math.max(467, Math.min(693, height * 0.9))
     const panelX = width / 2
     const panelY = height / 2
-    const borderRadius = Math.max(8, Math.min(16, width * 0.008))
-    const borderWidth = Math.max(2, Math.min(4, width * 0.002))
+    const borderRadius = Math.max(11, Math.min(21, width * 0.011))
+    const borderWidth = Math.max(3, Math.min(5, width * 0.003))
 
     const panel = this.add.graphics().setDepth(1001)
     panel.fillStyle(0x0b0e20, 0.95)
@@ -53,9 +53,9 @@ export default class PauseScene extends Phaser.Scene {
       borderRadius
     )
 
-    // Title (responsive with mobile support)
-    const titleFontSize = Math.max(20, Math.min(32, width * 0.04))
-    const titleOffset = Math.max(25, Math.min(40, panelHeight * 0.077))
+    // Title (increased for readability)
+    const titleFontSize = Math.max(27, Math.min(43, width * 0.053))
+    const titleOffset = Math.max(33, Math.min(53, panelHeight * 0.077))
     this.add.text(panelX, panelY - panelHeight / 2 + titleOffset, '⏸ PAUSED', {
       fontFamily: 'monospace',
       fontSize: `${titleFontSize}px`,
@@ -63,13 +63,13 @@ export default class PauseScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(1010)
 
-    // Menu buttons (responsive with mobile support)
-    const startOffset = Math.max(50, Math.min(80, panelHeight * 0.15))
+    // Menu buttons (proper spacing and sizing)
+    const startOffset = Math.max(67, Math.min(107, panelHeight * 0.154))
     const startY = panelY - panelHeight / 2 + startOffset
-    const gap = Math.max(40, Math.min(60, panelHeight * 0.115))
+    const gap = Math.max(53, Math.min(80, panelHeight * 0.115))
 
-    const buttonWidth = Math.max(220, Math.min(500, panelWidth * 0.85))
-    const buttonHeight = Math.max(36, Math.min(50, panelHeight * 0.096))
+    const buttonWidth = Math.max(293, Math.min(667, panelWidth * 0.85))
+    const buttonHeight = Math.max(48, Math.min(67, panelHeight * 0.096))
 
     // Screen Shake button
     const screenShakeButton = new MenuButton({
@@ -125,8 +125,10 @@ export default class PauseScene extends Phaser.Scene {
     showFPSButton.getContainer().setDepth(1010)
     this.buttons.push(showFPSButton)
 
-    // Music Volume buttons (left/right controls)
-    const smallButtonWidth = Math.max(55, Math.min(75, buttonWidth * 0.3))
+    // Music Volume buttons (proper sizing and alignment)
+    const smallButtonWidth = Math.max(73, Math.min(100, buttonWidth * 0.3))
+    const labelFontSize = Math.max(13, Math.min(19, width * 0.016))
+
     const musicDownButton = new MenuButton({
       scene: this,
       x: panelX - buttonWidth / 2,
@@ -147,11 +149,11 @@ export default class PauseScene extends Phaser.Scene {
 
     const musicLabel = this.add.text(
       panelX,
-      startY + gap * 3,
+      startY + gap * 3 + buttonHeight / 2,
       `Music: ${Math.round(getOptions().musicVolume * 100)}%`,
       {
         fontFamily: 'monospace',
-        fontSize: `${Math.max(10, Math.min(14, width * 0.012))}px`,
+        fontSize: `${labelFontSize}px`,
         color: '#ffffff',
         fontStyle: 'bold',
       }
@@ -175,7 +177,7 @@ export default class PauseScene extends Phaser.Scene {
     musicUpButton.getContainer().setDepth(1010)
     this.buttons.push(musicUpButton)
 
-    // SFX Volume buttons (left/right controls)
+    // SFX Volume buttons (proper sizing and alignment)
     const sfxDownButton = new MenuButton({
       scene: this,
       x: panelX - buttonWidth / 2,
@@ -196,11 +198,11 @@ export default class PauseScene extends Phaser.Scene {
 
     const sfxLabel = this.add.text(
       panelX,
-      startY + gap * 4,
+      startY + gap * 4 + buttonHeight / 2,
       `SFX: ${Math.round(getOptions().sfxVolume * 100)}%`,
       {
         fontFamily: 'monospace',
-        fontSize: `${Math.max(10, Math.min(14, width * 0.012))}px`,
+        fontSize: `${labelFontSize}px`,
         color: '#ffffff',
         fontStyle: 'bold',
       }
