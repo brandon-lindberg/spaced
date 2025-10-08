@@ -38,7 +38,9 @@ export class PlayerController {
     sprite.setCollideWorldBounds(false)
     sprite.setScale(0.1640625) // 28px ship * 6 = 168px ship
     sprite.setOrigin(0.5, 0.5)
-    sprite.body?.setSize(60, 60, true)
+    // Set collision body to match visual sprite size (168px ship)
+    sprite.body?.setSize(168, 168, true)
+    sprite.body?.setCircle(84) // Circular collision with radius 84 (half of 168px)
     this.ctx.cameras.main.startFollow(sprite, true, 0.15, 0.15)
 
     this.player = sprite
