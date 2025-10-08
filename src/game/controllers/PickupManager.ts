@@ -114,7 +114,17 @@ export class PickupManager {
       gold.body.enable = true
     }
     if (elite) {
-      this.scene.tweens.add({ targets: gold, scale: { from: 1, to: 1.15 }, alpha: { from: 1, to: 0.9 }, yoyo: true, duration: 350, repeat: -1, ease: 'Sine.easeInOut' })
+      // Animate display size for elite gold instead of scale
+      this.scene.tweens.add({
+        targets: gold,
+        displayWidth: { from: spriteSize, to: spriteSize * 1.15 },
+        displayHeight: { from: spriteSize, to: spriteSize * 1.15 },
+        alpha: { from: 1, to: 0.9 },
+        yoyo: true,
+        duration: 350,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
     }
   }
 
