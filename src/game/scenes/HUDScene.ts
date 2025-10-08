@@ -75,7 +75,7 @@ export default class HUDScene extends Phaser.Scene {
     const itemIconSize = Math.max(40, Math.min(64, width * 0.033))
     const pipSize = Math.max(5, Math.min(8, width * 0.004))
     const pipSpacing = Math.max(8, Math.min(12, width * 0.0067))
-    const itemSpacing = Math.max(40, Math.min(56, width * 0.029))
+    const itemSpacing = Math.max(48, Math.min(72, width * 0.038))
     const itemStartY = Math.max(120, Math.min(160, height * 0.148))
 
     const ensureBlockIcon = (key: string, color: number) => {
