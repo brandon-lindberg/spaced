@@ -217,7 +217,7 @@ export class EnemyManager {
     }
   }
 
-  updateEnemies(cx: number, cy: number) {
+  updateEnemies(cx: number, cy: number, elapsedSec: number = 0, playerLevel: number = 1) {
     const player = this.player
     const despawnRadius = Math.hypot(this.scene.scale.width, this.scene.scale.height)
     const chaseSpeedBase = 40
@@ -258,13 +258,21 @@ export class EnemyManager {
       let vx = 0, vy = 0
 
       if (enemyType === 'enemy-chaser') {
-        // Chaser: Fast aggressive pursuit with strong weaving - MUCH FASTER
+        // Chaser: Fast aggressive pursuit with strong weaving - scales with player level
+        // Level 1: 6x speed, Level 10+: 9x speed
+        // Also gets slight boost from time (max +0.5x)
+        const levelScale = Math.min(9, 6 + (playerLevel - 1) * 0.33)  // +0.33x per level
+        const timeBonus = Math.min(0.5, elapsedSec / 360)  // +0.5x max over 6 minutes
+        const chaserSpeedScale = levelScale + timeBonus
+
+        // Weave intensity: Level 1: 0.3, Level 10+: 0.6
+        const weaveIntensity = Math.min(0.6, 0.3 + (playerLevel - 1) * 0.033)
         const weaveTime = this.scene.time.now / 500
-        const weaveOffset = Math.sin(weaveTime + enemy.x * 0.01) * 0.6
+        const weaveOffset = Math.sin(weaveTime + enemy.x * 0.01) * weaveIntensity
         const perpX = -dy / dist
         const perpY = dx / dist
-        vx = (dx / dist + perpX * weaveOffset) * chaseSpeed * 9  // Increased from 6 to 9
-        vy = (dy / dist + perpY * weaveOffset) * chaseSpeed * 9
+        vx = (dx / dist + perpX * weaveOffset) * chaseSpeed * chaserSpeedScale
+        vy = (dy / dist + perpY * weaveOffset) * chaseSpeed * chaserSpeedScale
       } else if (enemyType === 'enemy-fodder') {
         // Fodder: Aggressive swarm behavior - rushes in groups
         const rushDistance = 500

@@ -361,7 +361,8 @@ export default class GameScene extends Phaser.Scene {
       this.enemyManager?.spawnEnemyVariant(camCenter.x, camCenter.y, ctx)
     }
 
-    this.enemyManager?.updateEnemies(camCenter.x, camCenter.y)
+    const playerLevel = this.registry.get('level') ?? 1
+    this.enemyManager?.updateEnemies(camCenter.x, camCenter.y, elapsedSec, playerLevel)
 
     if (level === 2) {
       this.obstacleManager?.update(dt, camCenter)
