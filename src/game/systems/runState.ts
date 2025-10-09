@@ -17,6 +17,7 @@ export const levelDurationsSec: Record<number, number> = {
 export const runState = {
   state: null as RunState | null,
   checkpoints: new Map<number, unknown>(),
+  retryCheckpoints: new Map<number, unknown>(),
 
   newRun(seed?: number) {
     this.state = {
@@ -54,6 +55,15 @@ export const runState = {
 
   clearCheckpoints() {
     this.checkpoints.clear()
+    this.retryCheckpoints.clear()
+  },
+
+  setRetryCheckpoint(level: number, snapshot: unknown) {
+    this.retryCheckpoints.set(level, snapshot)
+  },
+
+  getRetryCheckpoint<T = unknown>(level: number): T | null {
+    return (this.retryCheckpoints.get(level) as T) ?? null
   },
 
   clearRunRegistry(registry: Phaser.Data.DataManager) {
@@ -63,6 +73,7 @@ export const runState = {
     registry.set('xpToNext', undefined)
     registry.set('gold', undefined)
     registry.set('hp', undefined)
+    registry.set('hpMaxPersistent', undefined)
     registry.set('inv', undefined)
     registry.set('inv-weapons', undefined)
     registry.set('inv-accessories', undefined)

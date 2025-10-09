@@ -200,6 +200,28 @@ export default class GameScene extends Phaser.Scene {
       this.progressManager.initializeFromRegistry()
     }
 
+    // Create retry checkpoint for this level if it doesn't exist
+    // This captures the state when entering the level (for Level 1 or fresh level select)
+    if (!runState.getRetryCheckpoint(level)) {
+      const retrySnapshot = {
+        playerLevel: this.registry.get('level') || 1,
+        xp: this.registry.get('xp') || 0,
+        xpToNext: (this.registry.get('xpToNext') as number) || 3,
+        gold: this.registry.get('gold') || 0,
+        inv: this.registry.get('inv'),
+        bonuses: this.registry.get('bonuses') || {
+          fireRateMul: 1,
+          damage: 0,
+          multishot: 0,
+          speedMul: 1,
+          magnet: 0,
+          levelsUsed: 0,
+          inlineExtra: 0,
+        },
+      }
+      runState.setRetryCheckpoint(level, retrySnapshot)
+    }
+
     this.stats = this.progressManager.getStats()
     this.hurtCooldown = this.stats.hurtCooldown
 

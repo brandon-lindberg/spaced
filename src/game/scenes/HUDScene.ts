@@ -125,7 +125,6 @@ export default class HUDScene extends Phaser.Scene {
           if (/Power.*cell/i.test(name)) key = 'icon-acc-power-cell'
           if (/Thruster/i.test(name)) key = 'icon-acc-thruster'
           if (/Magnet.*core/i.test(name)) key = 'icon-acc-tractor-beam'
-          if (/Shield.*plating/i.test(name)) key = 'icon-acc-shield-plating'
           if (/Splitter/i.test(name)) key = 'icon-acc-splitter'
           if (/Ammo.*loader/i.test(name)) key = 'icon-acc-ammo-loader'
           if (this.textures.exists(key)) {

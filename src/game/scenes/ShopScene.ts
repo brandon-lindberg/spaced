@@ -493,9 +493,8 @@ export default class ShopScene extends Phaser.Scene {
     const next = (runState.state?.level ?? 1) + 1
     runState.startLevel(next, this.time.now)
 
-    // Create checkpoint with current state for the next level
-    // This ensures all progression (weapons, HP, gold, bonuses) carries over
-    const snapshot = {
+    // Create progression checkpoint for advancing to future levels
+    const progressSnapshot = {
       playerLevel: this.registry.get('level') || 1,
       xp: this.registry.get('xp') || 0,
       xpToNext: (this.registry.get('xpToNext') as number) || 3,
@@ -512,7 +511,27 @@ export default class ShopScene extends Phaser.Scene {
         inlineExtra: 0,
       },
     }
-    runState.setCheckpoint(next, snapshot)
+    runState.setCheckpoint(next, progressSnapshot)
+
+    // Create retry checkpoint for this level (excludes HP - that's tracked separately)
+    // This is what we restore to when the player dies and retries
+    const retrySnapshot = {
+      playerLevel: this.registry.get('level') || 1,
+      xp: this.registry.get('xp') || 0,
+      xpToNext: (this.registry.get('xpToNext') as number) || 3,
+      gold: this.registry.get('gold') || 0,
+      inv: this.registry.get('inv') || createInventory(),
+      bonuses: (this.registry.get('bonuses') as any) || {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      },
+    }
+    runState.setRetryCheckpoint(next, retrySnapshot)
 
     this.cleanup()
     this.scene.start('Game')

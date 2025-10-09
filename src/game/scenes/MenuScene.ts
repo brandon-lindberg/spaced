@@ -153,6 +153,8 @@ export default class MenuScene extends Phaser.Scene {
     runState.clearRunRegistry(this.registry)
     runState.clearCheckpoints()
     runState.newRun()
+    // Initialize hpMaxPersistent for fresh run
+    this.registry.set('hpMaxPersistent', 10)
     this.cleanup()
     this.scene.start('Game')
     this.scene.launch('HUD')
@@ -265,6 +267,9 @@ export default class MenuScene extends Phaser.Scene {
     runState.clearCheckpoints()
     runState.newRun()
     runState.startLevel(level, this.time.now)
+
+    // Initialize hpMaxPersistent for fresh level select
+    this.registry.set('hpMaxPersistent', 10)
 
     // Create checkpoint with fresh state for the selected level
     const snapshot = {
