@@ -190,7 +190,16 @@ export default class GameScene extends Phaser.Scene {
       onCheckpoint: () => {},
     }
     this.progressManager = new RunProgressManager(this, progressHandlers)
-    this.progressManager.initializeFromRegistry()
+
+    // Try to restore from checkpoint first (for level progression)
+    // If no checkpoint exists, initialize from registry (for fresh runs)
+    const checkpoint = runState.getCheckpoint(level)
+    if (checkpoint) {
+      this.progressManager.restoreFromSnapshot(checkpoint)
+    } else {
+      this.progressManager.initializeFromRegistry()
+    }
+
     this.stats = this.progressManager.getStats()
     this.hurtCooldown = this.stats.hurtCooldown
 

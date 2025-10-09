@@ -461,4 +461,56 @@ export class RunProgressManager {
   saveBonuses() {
     this.scene.registry.set('bonuses', this.exportBonuses())
   }
+
+  // Create a complete snapshot of the current run state
+  createSnapshot() {
+    this.ensureHpIntegrity()
+    return {
+      playerLevel: this.level,
+      xp: this.scene.registry.get('xp') || 0,
+      xpToNext: this.xpToNext,
+      gold: this.scene.registry.get('gold') || 0,
+      hp: { cur: this.hpCur, max: this.hpMax },
+      inv: this.inventory,
+      bonuses: this.exportBonuses(),
+    }
+  }
+
+  // Restore state from a snapshot
+  restoreFromSnapshot(snapshot: any) {
+    if (!snapshot) return
+
+    this.level = snapshot.playerLevel ?? 1
+    this.xpToNext = snapshot.xpToNext ?? 3
+    this.inventory = snapshot.inv || this.inventory
+
+    if (snapshot.hp) {
+      this.hpMax = snapshot.hp.max ?? 10
+      this.hpCur = snapshot.hp.cur ?? this.hpMax
+      this.syncHpToRegistry()
+    }
+
+    if (snapshot.bonuses) {
+      this.bonusFireRateMul = snapshot.bonuses.fireRateMul ?? 1
+      this.bonusDamage = snapshot.bonuses.damage ?? 0
+      this.bonusMultishot = snapshot.bonuses.multishot ?? 0
+      this.bonusSpeedMul = snapshot.bonuses.speedMul ?? 1
+      this.bonusMagnet = snapshot.bonuses.magnet ?? 0
+      this.bonusLevelsUsed = snapshot.bonuses.levelsUsed ?? 0
+      this.inlineExtraProjectiles = snapshot.bonuses.inlineExtra ?? 0
+    }
+
+    // Update registry with restored values
+    this.scene.registry.set('level', this.level)
+    this.scene.registry.set('xp', snapshot.xp ?? 0)
+    this.scene.registry.set('xpToNext', this.xpToNext)
+    this.scene.registry.set('gold', snapshot.gold ?? 0)
+    this.scene.registry.set('inv', this.inventory)
+    this.scene.registry.set('inv-weapons', describeWeapons(this.inventory))
+    this.scene.registry.set('inv-accessories', describeAccessories(this.inventory))
+    this.scene.registry.set('bonuses', this.exportBonuses())
+
+    this.recomputeEffectiveStats()
+    this.events.onStatsChanged(this.getStats())
+  }
 }

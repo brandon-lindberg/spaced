@@ -51,6 +51,26 @@ export const runState = {
   getCheckpoint<T = unknown>(level: number): T | null {
     return (this.checkpoints.get(level) as T) ?? null
   },
+
+  clearCheckpoints() {
+    this.checkpoints.clear()
+  },
+
+  clearRunRegistry(registry: Phaser.Data.DataManager) {
+    // Clear all run-related registry keys to prevent conflicts between runs
+    registry.set('level', undefined)
+    registry.set('xp', undefined)
+    registry.set('xpToNext', undefined)
+    registry.set('gold', undefined)
+    registry.set('hp', undefined)
+    registry.set('inv', undefined)
+    registry.set('inv-weapons', undefined)
+    registry.set('inv-accessories', undefined)
+    registry.set('bonuses', undefined)
+    registry.set('sets-summary', undefined)
+    registry.set('boss-hp', undefined)
+    registry.set('time-left', undefined)
+  },
 }
 
 
