@@ -167,6 +167,9 @@ export default class GameOverScene extends Phaser.Scene {
     this.registry.set('hpMaxPersistent', persistentHpMax)
     this.registry.set('boss-hp', null)
 
+    // Set retry flag so GameScene knows to use retry checkpoint instead of progress checkpoint
+    this.registry.set('isRetry', true)
+
     runState.startLevel(lvl, this.time.now)
 
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
