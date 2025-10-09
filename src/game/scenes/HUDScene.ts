@@ -119,9 +119,17 @@ export default class HUDScene extends Phaser.Scene {
         x = padding; y += itemSpacing + pipSize + 5
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
+          const name = match ? match[1] : item
           const lvl = match ? parseInt(match[2], 10) : 1
-          if (this.textures.exists('icon-acc')) {
-            const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
+          let key = 'icon-acc'
+          if (/Power.*cell/i.test(name)) key = 'icon-acc-power-cell'
+          if (/Thruster/i.test(name)) key = 'icon-acc-thruster'
+          if (/Magnet.*core/i.test(name)) key = 'icon-acc-tractor-beam'
+          if (/Shield.*plating/i.test(name)) key = 'icon-acc-shield-plating'
+          if (/Splitter/i.test(name)) key = 'icon-acc-splitter'
+          if (/Ammo.*loader/i.test(name)) key = 'icon-acc-ammo-loader'
+          if (this.textures.exists(key)) {
+            const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, key).setOrigin(0.5).setScrollFactor(0)
             img.setDisplaySize(itemIconSize, itemIconSize)
             iconLayer.add(img)
           }
