@@ -75,7 +75,7 @@ export default class HUDScene extends Phaser.Scene {
     const itemIconSize = Math.max(40, Math.min(64, width * 0.033))
     const pipSize = Math.max(5, Math.min(8, width * 0.004))
     const pipSpacing = Math.max(8, Math.min(12, width * 0.0067))
-    const itemSpacing = Math.max(40, Math.min(56, width * 0.029))
+    const itemSpacing = Math.max(48, Math.min(72, width * 0.038))
     const itemStartY = Math.max(120, Math.min(160, height * 0.148))
 
     const ensureBlockIcon = (key: string, color: number) => {
@@ -119,9 +119,17 @@ export default class HUDScene extends Phaser.Scene {
         x = padding; y += itemSpacing + pipSize + 5
         for (const item of accStr.split(', ')) {
           const match = /(.*) Lv(\d+)/.exec(item)
+          const name = match ? match[1] : item
           const lvl = match ? parseInt(match[2], 10) : 1
-          if (this.textures.exists('icon-acc')) {
-            const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, 'icon-acc').setOrigin(0.5).setScrollFactor(0)
+          let key = 'icon-acc'
+          if (/Power.*cell/i.test(name)) key = 'icon-acc-power-cell'
+          if (/Thruster/i.test(name)) key = 'icon-acc-thruster'
+          if (/Magnet.*core/i.test(name)) key = 'icon-acc-tractor-beam'
+          if (/Shield.*plating/i.test(name)) key = 'icon-acc-shield-plating'
+          if (/Splitter/i.test(name)) key = 'icon-acc-splitter'
+          if (/Ammo.*loader/i.test(name)) key = 'icon-acc-ammo-loader'
+          if (this.textures.exists(key)) {
+            const img = this.add.image(x + itemIconSize/2, y + itemIconSize/2, key).setOrigin(0.5).setScrollFactor(0)
             img.setDisplaySize(itemIconSize, itemIconSize)
             iconLayer.add(img)
           }

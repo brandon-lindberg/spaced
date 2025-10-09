@@ -91,6 +91,12 @@ export default class LevelUpScene extends Phaser.Scene {
       else if (c.key.startsWith('w-orb')) icon = 'icon-weapon-orb'
       else if (c.key.startsWith('w-')) icon = 'icon-weapon'
       else if (c.key === 'gold') icon = 'icon-gold'
+      else if (c.key === 'acc-power-cell') icon = 'icon-acc-power-cell'
+      else if (c.key === 'acc-thrusters') icon = 'icon-acc-thruster'
+      else if (c.key === 'acc-magnet-core') icon = 'icon-acc-tractor-beam'
+      else if (c.key === 'acc-shield-plating') icon = 'icon-acc-shield-plating'
+      else if (c.key === 'acc-splitter') icon = 'icon-acc-splitter'
+      else if (c.key === 'acc-ammo-loader') icon = 'icon-acc-ammo-loader'
 
       // Get description
       const desc = this.getDescription(c.key)

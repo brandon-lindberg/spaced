@@ -58,6 +58,13 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.image('icon-weapon-laser', 'assets/icons/laser_icon_one.png')
     this.load.image('icon-weapon-missiles', 'assets/icons/missile_icon.png')
     this.load.image('icon-weapon-orb', 'assets/icons/orb_icon.png')
+    // Load accessory icons
+    this.load.image('icon-acc-power-cell', 'assets/accessories/power_cell.png')
+    this.load.image('icon-acc-thruster', 'assets/accessories/thruster.png')
+    this.load.image('icon-acc-tractor-beam', 'assets/accessories/tractor_beam.png')
+    this.load.image('icon-acc-shield-plating', 'assets/accessories/shield_plating.png')
+    this.load.image('icon-acc-splitter', 'assets/accessories/splitter.png')
+    this.load.image('icon-acc-ammo-loader', 'assets/accessories/ammo_loader.png')
     // Load explosion sprites
     this.load.image('explosion-small', 'assets/effects/explosions/explosion_small.png')
     this.load.image('explosion-medium', 'assets/effects/explosions/explosion_medium.png')
