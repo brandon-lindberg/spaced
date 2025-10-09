@@ -149,7 +149,12 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   private startGame() {
+    // Clear any previous run data from registry
+    runState.clearRunRegistry(this.registry)
+    runState.clearCheckpoints()
     runState.newRun()
+    // Initialize hpMaxPersistent for fresh run
+    this.registry.set('hpMaxPersistent', 10)
     this.cleanup()
     this.scene.start('Game')
     this.scene.launch('HUD')
@@ -257,29 +262,33 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   private startLevel(level: number) {
+    // Clear any previous run data from registry to ensure fresh start
+    runState.clearRunRegistry(this.registry)
+    runState.clearCheckpoints()
     runState.newRun()
     runState.startLevel(level, this.time.now)
 
-    // Create checkpoint for level select
-    if (level > 1) {
-      const snapshot = {
-        playerLevel: level,
-        xp: 0,
-        xpToNext: 3,
-        gold: 0,
-        inv: createInventory(),
-        bonuses: {
-          fireRateMul: 1,
-          damage: 0,
-          multishot: 0,
-          speedMul: 1,
-          magnet: 0,
-          levelsUsed: 0,
-          inlineExtra: 0,
-        },
-      }
-      runState.setCheckpoint(level, snapshot)
+    // Initialize hpMaxPersistent for fresh level select
+    this.registry.set('hpMaxPersistent', 10)
+
+    // Create checkpoint with fresh state for the selected level
+    const snapshot = {
+      playerLevel: 1,
+      xp: 0,
+      xpToNext: 3,
+      gold: 0,
+      inv: createInventory(),
+      bonuses: {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      },
     }
+    runState.setCheckpoint(level, snapshot)
 
     this.cleanup()
     this.scene.start('Game')

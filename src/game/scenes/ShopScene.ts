@@ -283,11 +283,20 @@ export default class ShopScene extends Phaser.Scene {
         const cost = price.dmg(dmgBuys)
         if (getGold() < cost) return
         setGold(getGold() - cost)
-        const game = this.scene.get('Game') as any
-        if (game) {
-          game.bonusDamage = Math.min(99, (game.bonusDamage || 0) + 1)
-          game.recomputeEffectiveStats && game.recomputeEffectiveStats()
+
+        // Update bonuses in registry
+        const bonuses = (this.registry.get('bonuses') as any) || {
+          fireRateMul: 1,
+          damage: 0,
+          multishot: 0,
+          speedMul: 1,
+          magnet: 0,
+          levelsUsed: 0,
+          inlineExtra: 0,
         }
+        bonuses.damage = Math.min(99, (bonuses.damage || 0) + 1)
+        this.registry.set('bonuses', bonuses)
+
         this.damageBoostPurchased = true
       },
       isDisabled: () => this.damageBoostPurchased,
@@ -304,11 +313,20 @@ export default class ShopScene extends Phaser.Scene {
         const cost = price.rate(rateBuys)
         if (getGold() < cost) return
         setGold(getGold() - cost)
-        const game = this.scene.get('Game') as any
-        if (game) {
-          game.bonusFireRateMul = Math.min(3, (game.bonusFireRateMul || 1) * 1.1)
-          game.recomputeEffectiveStats && game.recomputeEffectiveStats()
+
+        // Update bonuses in registry
+        const bonuses = (this.registry.get('bonuses') as any) || {
+          fireRateMul: 1,
+          damage: 0,
+          multishot: 0,
+          speedMul: 1,
+          magnet: 0,
+          levelsUsed: 0,
+          inlineExtra: 0,
         }
+        bonuses.fireRateMul = Math.min(3, (bonuses.fireRateMul || 1) * 1.1)
+        this.registry.set('bonuses', bonuses)
+
         rateBuys++
       },
       canAfford: () => getGold() >= price.rate(rateBuys),
@@ -325,11 +343,9 @@ export default class ShopScene extends Phaser.Scene {
         if (getGold() < cost) return
         setGold(getGold() - cost)
         const hp = this.registry.get('hp') as { cur: number; max: number } | undefined
-        const game = this.scene.get('Game') as any
-        const cur = hp?.cur ?? (game?.hpCur || 0)
-        const max = hp?.max ?? (game?.hpMax || 10)
+        const cur = hp?.cur ?? 10
+        const max = hp?.max ?? 10
         const newCur = Math.min(max, cur + 3)
-        if (game) game.hpCur = newCur
         this.registry.set('hp', { cur: newCur, max })
         healSmallBuys++
       },
@@ -348,11 +364,9 @@ export default class ShopScene extends Phaser.Scene {
       onClick: () => {
         if (getGold() < price.healFull) return
         setGold(getGold() - price.healFull)
-        const game = this.scene.get('Game') as any
-        if (game) {
-          game.hpCur = game.hpMax
-          this.registry.set('hp', { cur: game.hpCur, max: game.hpMax })
-        }
+        const hp = this.registry.get('hp') as { cur: number; max: number } | undefined
+        const max = hp?.max ?? 10
+        this.registry.set('hp', { cur: max, max })
       },
       canAfford: () => getGold() >= price.healFull,
     })
@@ -478,6 +492,51 @@ export default class ShopScene extends Phaser.Scene {
   private continue() {
     const next = (runState.state?.level ?? 1) + 1
     runState.startLevel(next, this.time.now)
+
+    // Create progression checkpoint for advancing to future levels
+    const progressInv = this.registry.get('inv') || createInventory()
+    const progressSnapshot = {
+      playerLevel: this.registry.get('level') || 1,
+      xp: this.registry.get('xp') || 0,
+      xpToNext: (this.registry.get('xpToNext') as number) || 3,
+      gold: this.registry.get('gold') || 0,
+      hp: this.registry.get('hp') || { cur: 10, max: 10 },
+      // Deep copy inventory to avoid reference issues
+      inv: JSON.parse(JSON.stringify(progressInv)),
+      bonuses: (this.registry.get('bonuses') as any) || {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      },
+    }
+    runState.setCheckpoint(next, progressSnapshot)
+
+    // Create retry checkpoint for this level (excludes HP - that's tracked separately)
+    // This is what we restore to when the player dies and retries
+    const inv = this.registry.get('inv') || createInventory()
+    const retrySnapshot = {
+      playerLevel: this.registry.get('level') || 1,
+      xp: this.registry.get('xp') || 0,
+      xpToNext: (this.registry.get('xpToNext') as number) || 3,
+      gold: this.registry.get('gold') || 0,
+      // Deep copy inventory to avoid reference issues
+      inv: JSON.parse(JSON.stringify(inv)),
+      bonuses: (this.registry.get('bonuses') as any) || {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      },
+    }
+    runState.setRetryCheckpoint(next, retrySnapshot)
+
     this.cleanup()
     this.scene.start('Game')
     this.scene.launch('HUD')

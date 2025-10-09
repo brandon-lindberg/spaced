@@ -121,18 +121,21 @@ export default class GameOverScene extends Phaser.Scene {
     this.scene.stop('Cutscene')
     this.scene.stop('Victory')
 
-    const hp = (this.registry.get('hp') as { cur: number; max: number } | undefined) ?? { cur: 10, max: 10 }
     const lvl = runState.state?.level ?? 1
 
-    if (lvl === 1) {
-      // Level 1: Reset everything to starting values (except health level-ups)
-      this.registry.set('level', 1)
-      this.registry.set('xp', 0)
-      this.registry.set('xpToNext', 3)
-      this.registry.set('gold', 0)
-      this.registry.set('inv', createInventory())
-      this.registry.set('boss-hp', null)
-      this.registry.set('bonuses', {
+    // Get current hpMaxPersistent (this persists across retries)
+    const persistentHpMax = (this.registry.get('hpMaxPersistent') as number) || 10
+
+    // Restore from retry checkpoint
+    const retrySnap = runState.getRetryCheckpoint<any>(lvl)
+    if (retrySnap) {
+      // Restore state from when the level started (excludes HP)
+      this.registry.set('level', retrySnap.playerLevel || 1)
+      this.registry.set('xp', retrySnap.xp || 0)
+      this.registry.set('xpToNext', retrySnap.xpToNext || 3)
+      this.registry.set('gold', retrySnap.gold || 0)
+      this.registry.set('inv', retrySnap.inv || createInventory())
+      this.registry.set('bonuses', retrySnap.bonuses || {
         fireRateMul: 1,
         damage: 0,
         multishot: 0,
@@ -142,35 +145,32 @@ export default class GameOverScene extends Phaser.Scene {
         inlineExtra: 0,
       })
     } else {
-      // Levels 2-5: Restore from checkpoint if available
-      const snap = runState.getCheckpoint<any>(lvl)
-      if (snap) {
-        this.registry.set('level', snap.playerLevel)
-        this.registry.set('xp', snap.xp)
-        this.registry.set('xpToNext', snap.xpToNext)
-        this.registry.set('gold', snap.gold)
-        this.registry.set('inv', snap.inv)
-        this.registry.set('boss-hp', null)
-        this.registry.set('bonuses', snap.bonuses)
-        runState.startLevel(snap.playerLevel, this.time.now)
-      } else {
-        // Fallback
-        this.registry.set('level', 1)
-        this.registry.set('xp', 0)
-        this.registry.set('xpToNext', 3)
-        this.registry.set('gold', 0)
-        this.registry.set('inv', createInventory())
-        this.registry.set('boss-hp', null)
-        this.registry.set('bonuses', null)
-        runState.startLevel(1, this.time.now)
-      }
+      // Fallback: Reset to fresh state (Level 1 or fresh level select)
+      this.registry.set('level', 1)
+      this.registry.set('xp', 0)
+      this.registry.set('xpToNext', 3)
+      this.registry.set('gold', 0)
+      this.registry.set('inv', createInventory())
+      this.registry.set('bonuses', {
+        fireRateMul: 1,
+        damage: 0,
+        multishot: 0,
+        speedMul: 1,
+        magnet: 0,
+        levelsUsed: 0,
+        inlineExtra: 0,
+      })
     }
 
-    if (lvl === 1) {
-      runState.startLevel(lvl, this.time.now)
-    }
+    // Set HP to persistent max (this survives retries and includes HP from failed attempt)
+    this.registry.set('hp', { cur: persistentHpMax, max: persistentHpMax })
+    this.registry.set('hpMaxPersistent', persistentHpMax)
+    this.registry.set('boss-hp', null)
 
-    this.registry.set('hp', { cur: hp.max, max: hp.max })
+    // Set retry flag so GameScene knows to use retry checkpoint instead of progress checkpoint
+    this.registry.set('isRetry', true)
+
+    runState.startLevel(lvl, this.time.now)
 
     const gameScene = this.scene.get('Game') as Phaser.Scene | undefined
     if (gameScene) gameScene.scene.stop()

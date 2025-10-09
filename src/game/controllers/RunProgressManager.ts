@@ -66,6 +66,8 @@ export class RunProgressManager {
   private syncHpToRegistry() {
     this.ensureHpIntegrity()
     this.scene.registry.set('hp', { cur: this.hpCur, max: this.hpMax })
+    // Always sync hpMaxPersistent - this value persists across retries
+    this.scene.registry.set('hpMaxPersistent', this.hpMax)
   }
 
   constructor(scene: Phaser.Scene, events: ProgressEventHandlers) {
@@ -147,18 +149,26 @@ export class RunProgressManager {
   }
 
   initializeFromRegistry() {
-    const hpReg = this.scene.registry.get('hp') as { cur?: unknown; max?: unknown } | undefined
-    if (hpReg) {
-      const rawMax = typeof hpReg.max === 'number' ? hpReg.max : Number(hpReg.max)
-      const rawCur = typeof hpReg.cur === 'number' ? hpReg.cur : Number(hpReg.cur)
-      if (Number.isFinite(rawMax) && rawMax > 0) {
-        this.hpMax = rawMax
-      }
-      if (Number.isFinite(rawCur)) {
-        this.hpCur = rawCur
-      }
-      if (Number.isFinite(rawCur) && Number.isFinite(rawMax) && rawMax > 0) {
-        this.hpCur = Math.max(0, Math.min(rawCur, rawMax))
+    // Check for hpMaxPersistent first (survives retries)
+    const persistentMax = this.scene.registry.get('hpMaxPersistent') as number | undefined
+    if (persistentMax && Number.isFinite(persistentMax) && persistentMax > 0) {
+      this.hpMax = persistentMax
+      this.hpCur = persistentMax
+    } else {
+      // Fallback to regular HP registry
+      const hpReg = this.scene.registry.get('hp') as { cur?: unknown; max?: unknown } | undefined
+      if (hpReg) {
+        const rawMax = typeof hpReg.max === 'number' ? hpReg.max : Number(hpReg.max)
+        const rawCur = typeof hpReg.cur === 'number' ? hpReg.cur : Number(hpReg.cur)
+        if (Number.isFinite(rawMax) && rawMax > 0) {
+          this.hpMax = rawMax
+        }
+        if (Number.isFinite(rawCur)) {
+          this.hpCur = rawCur
+        }
+        if (Number.isFinite(rawCur) && Number.isFinite(rawMax) && rawMax > 0) {
+          this.hpCur = Math.max(0, Math.min(rawCur, rawMax))
+        }
       }
     }
     this.syncHpToRegistry()
@@ -199,12 +209,14 @@ export class RunProgressManager {
 
     this.recomputeEffectiveStats()
 
+    const invForCheckpoint = this.scene.registry.get('inv')
     const snapshot = {
       playerLevel: this.scene.registry.get('level'),
       xp: this.scene.registry.get('xp'),
       xpToNext: this.xpToNext,
       gold: this.scene.registry.get('gold'),
-      inv: this.scene.registry.get('inv'),
+      // Deep copy inventory to avoid reference issues
+      inv: invForCheckpoint ? JSON.parse(JSON.stringify(invForCheckpoint)) : invForCheckpoint,
       bonuses: {
         fireRateMul: this.bonusFireRateMul,
         damage: this.bonusDamage,
@@ -460,5 +472,67 @@ export class RunProgressManager {
 
   saveBonuses() {
     this.scene.registry.set('bonuses', this.exportBonuses())
+  }
+
+  // Create a complete snapshot of the current run state
+  createSnapshot() {
+    this.ensureHpIntegrity()
+    return {
+      playerLevel: this.level,
+      xp: this.scene.registry.get('xp') || 0,
+      xpToNext: this.xpToNext,
+      gold: this.scene.registry.get('gold') || 0,
+      hp: { cur: this.hpCur, max: this.hpMax },
+      // Deep copy inventory to avoid reference issues
+      inv: this.inventory ? JSON.parse(JSON.stringify(this.inventory)) : this.inventory,
+      bonuses: this.exportBonuses(),
+    }
+  }
+
+  // Restore state from a snapshot
+  restoreFromSnapshot(snapshot: any) {
+    if (!snapshot) return
+
+    this.level = snapshot.playerLevel ?? 1
+    this.xpToNext = snapshot.xpToNext ?? 3
+    this.inventory = snapshot.inv || this.inventory
+
+    // Check for hpMaxPersistent first (survives retries)
+    const persistentMax = this.scene.registry.get('hpMaxPersistent') as number | undefined
+    if (persistentMax && Number.isFinite(persistentMax) && persistentMax > 0) {
+      // Use persistent HP max, but restore current HP from snapshot or set to max
+      this.hpMax = persistentMax
+      this.hpCur = snapshot.hp?.cur ?? persistentMax
+      // Make sure current doesn't exceed max
+      this.hpCur = Math.min(this.hpCur, this.hpMax)
+      this.syncHpToRegistry()
+    } else if (snapshot.hp) {
+      this.hpMax = snapshot.hp.max ?? 10
+      this.hpCur = snapshot.hp.cur ?? this.hpMax
+      this.syncHpToRegistry()
+    }
+
+    if (snapshot.bonuses) {
+      this.bonusFireRateMul = snapshot.bonuses.fireRateMul ?? 1
+      this.bonusDamage = snapshot.bonuses.damage ?? 0
+      this.bonusMultishot = snapshot.bonuses.multishot ?? 0
+      this.bonusSpeedMul = snapshot.bonuses.speedMul ?? 1
+      this.bonusMagnet = snapshot.bonuses.magnet ?? 0
+      this.bonusLevelsUsed = snapshot.bonuses.levelsUsed ?? 0
+      this.inlineExtraProjectiles = snapshot.bonuses.inlineExtra ?? 0
+    }
+
+    // Update registry with restored values
+    this.scene.registry.set('level', this.level)
+    this.scene.registry.set('xp', snapshot.xp ?? 0)
+    this.scene.registry.set('xpToNext', this.xpToNext)
+    this.scene.registry.set('gold', snapshot.gold ?? 0)
+    this.scene.registry.set('inv', this.inventory)
+    this.scene.registry.set('inv-weapons', describeWeapons(this.inventory))
+    this.scene.registry.set('inv-accessories', describeAccessories(this.inventory))
+    this.scene.registry.set('bonuses', this.exportBonuses())
+
+    this.recomputeEffectiveStats()
+    this.events.onStatsChanged(this.getStats())
   }
 }

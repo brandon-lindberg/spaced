@@ -190,7 +190,54 @@ export default class GameScene extends Phaser.Scene {
       onCheckpoint: () => {},
     }
     this.progressManager = new RunProgressManager(this, progressHandlers)
-    this.progressManager.initializeFromRegistry()
+
+    // Check if this is a retry (from Game Over) or normal level start
+    const isRetry = this.registry.get('isRetry') as boolean
+    this.registry.set('isRetry', false) // Clear the flag
+
+    if (isRetry) {
+      // On retry: Use retry checkpoint (or registry if no retry checkpoint exists)
+      const retryCheckpoint = runState.getRetryCheckpoint(level)
+      if (retryCheckpoint) {
+        this.progressManager.restoreFromSnapshot(retryCheckpoint)
+      } else {
+        // Fallback to registry (shouldn't happen, but safe)
+        this.progressManager.initializeFromRegistry()
+      }
+    } else {
+      // Normal level start: Try progress checkpoint first, then registry
+      const checkpoint = runState.getCheckpoint(level)
+      if (checkpoint) {
+        this.progressManager.restoreFromSnapshot(checkpoint)
+      } else {
+        this.progressManager.initializeFromRegistry()
+      }
+
+      // Create retry checkpoint for this level if it doesn't exist
+      // This captures the state when entering the level (for Level 1 or fresh level select)
+      if (!runState.getRetryCheckpoint(level)) {
+        const inv = this.registry.get('inv')
+        const retrySnapshot = {
+          playerLevel: this.registry.get('level') || 1,
+          xp: this.registry.get('xp') || 0,
+          xpToNext: (this.registry.get('xpToNext') as number) || 3,
+          gold: this.registry.get('gold') || 0,
+          // Deep copy inventory to avoid reference issues
+          inv: inv ? JSON.parse(JSON.stringify(inv)) : undefined,
+          bonuses: this.registry.get('bonuses') || {
+            fireRateMul: 1,
+            damage: 0,
+            multishot: 0,
+            speedMul: 1,
+            magnet: 0,
+            levelsUsed: 0,
+            inlineExtra: 0,
+          },
+        }
+        runState.setRetryCheckpoint(level, retrySnapshot)
+      }
+    }
+
     this.stats = this.progressManager.getStats()
     this.hurtCooldown = this.stats.hurtCooldown
 
