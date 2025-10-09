@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
 import { getBankGold } from '../systems/storage'
-import { createInventory } from '../systems/inventory'
+import { createInventory, addWeapon } from '../systems/inventory'
 import { MenuButton, MenuCard } from '../ui/MenuComponents'
 import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
 import { IconGenerator } from '../ui/IconGenerator'
@@ -272,12 +272,14 @@ export default class MenuScene extends Phaser.Scene {
     this.registry.set('hpMaxPersistent', 10)
 
     // Create checkpoint with fresh state for the selected level
+    const freshInv = createInventory()
+    addWeapon(freshInv, 'blaster') // Add starting weapon
     const snapshot = {
       playerLevel: 1,
       xp: 0,
       xpToNext: 3,
       gold: 0,
-      inv: createInventory(),
+      inv: freshInv,
       bonuses: {
         fireRateMul: 1,
         damage: 0,
