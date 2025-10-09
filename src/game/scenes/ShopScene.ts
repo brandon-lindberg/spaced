@@ -494,13 +494,15 @@ export default class ShopScene extends Phaser.Scene {
     runState.startLevel(next, this.time.now)
 
     // Create progression checkpoint for advancing to future levels
+    const progressInv = this.registry.get('inv') || createInventory()
     const progressSnapshot = {
       playerLevel: this.registry.get('level') || 1,
       xp: this.registry.get('xp') || 0,
       xpToNext: (this.registry.get('xpToNext') as number) || 3,
       gold: this.registry.get('gold') || 0,
       hp: this.registry.get('hp') || { cur: 10, max: 10 },
-      inv: this.registry.get('inv') || createInventory(),
+      // Deep copy inventory to avoid reference issues
+      inv: JSON.parse(JSON.stringify(progressInv)),
       bonuses: (this.registry.get('bonuses') as any) || {
         fireRateMul: 1,
         damage: 0,
@@ -515,12 +517,14 @@ export default class ShopScene extends Phaser.Scene {
 
     // Create retry checkpoint for this level (excludes HP - that's tracked separately)
     // This is what we restore to when the player dies and retries
+    const inv = this.registry.get('inv') || createInventory()
     const retrySnapshot = {
       playerLevel: this.registry.get('level') || 1,
       xp: this.registry.get('xp') || 0,
       xpToNext: (this.registry.get('xpToNext') as number) || 3,
       gold: this.registry.get('gold') || 0,
-      inv: this.registry.get('inv') || createInventory(),
+      // Deep copy inventory to avoid reference issues
+      inv: JSON.parse(JSON.stringify(inv)),
       bonuses: (this.registry.get('bonuses') as any) || {
         fireRateMul: 1,
         damage: 0,

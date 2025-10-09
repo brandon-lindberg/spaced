@@ -209,12 +209,14 @@ export class RunProgressManager {
 
     this.recomputeEffectiveStats()
 
+    const invForCheckpoint = this.scene.registry.get('inv')
     const snapshot = {
       playerLevel: this.scene.registry.get('level'),
       xp: this.scene.registry.get('xp'),
       xpToNext: this.xpToNext,
       gold: this.scene.registry.get('gold'),
-      inv: this.scene.registry.get('inv'),
+      // Deep copy inventory to avoid reference issues
+      inv: invForCheckpoint ? JSON.parse(JSON.stringify(invForCheckpoint)) : invForCheckpoint,
       bonuses: {
         fireRateMul: this.bonusFireRateMul,
         damage: this.bonusDamage,
@@ -481,7 +483,8 @@ export class RunProgressManager {
       xpToNext: this.xpToNext,
       gold: this.scene.registry.get('gold') || 0,
       hp: { cur: this.hpCur, max: this.hpMax },
-      inv: this.inventory,
+      // Deep copy inventory to avoid reference issues
+      inv: this.inventory ? JSON.parse(JSON.stringify(this.inventory)) : this.inventory,
       bonuses: this.exportBonuses(),
     }
   }
