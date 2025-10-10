@@ -67,18 +67,18 @@ export class EnemyManager {
     const spawnRoll = Math.random()
     let inner: number, outer: number
 
-    if (spawnRoll < 0.3) {
-      // Close spawns (30%) - immediate threat
-      inner = viewRadius * 0.7
-      outer = viewRadius * 0.9
-    } else if (spawnRoll < 0.7) {
-      // Medium spawns (40%) - standard distance
-      inner = viewRadius * 0.9
-      outer = viewRadius * 1.2
+    if (spawnRoll < 0.6) {
+      // Close spawns (60%) - immediate threat, just off-screen
+      inner = viewRadius * 0.55
+      outer = viewRadius * 0.75
+    } else if (spawnRoll < 0.85) {
+      // Medium spawns (25%) - slightly farther off-screen
+      inner = viewRadius * 0.75
+      outer = viewRadius * 0.95
     } else {
-      // Far spawns (30%) - time to prepare
-      inner = viewRadius * 1.2
-      outer = viewRadius * 1.6
+      // Far spawns (15%) - time to prepare
+      inner = viewRadius * 0.95
+      outer = viewRadius * 1.2
     }
 
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2)

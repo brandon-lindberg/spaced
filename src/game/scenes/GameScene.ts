@@ -388,10 +388,10 @@ export default class GameScene extends Phaser.Scene {
     const total = (runState.state?.levelDurationSec ?? 900)
     const elapsedSec = Math.max(0, total - this.remainingSec)
     const wave = 0.6 + 0.4 * Math.sin(elapsedSec * 0.25)
-    const spawnPerSecBase = Math.min(5, (0.3 + elapsedSec * 0.015) * wave)
+    const spawnPerSecBase = Math.min(5, (0.6 + elapsedSec * 0.015) * wave)
     const spawnPerSec = spawnPerSecBase * this.spawnRateScale[this.qualityLevel]
     this.spawnAccumulator += spawnPerSec * dt
-    const capBase = Math.min(70, 10 + Math.floor(elapsedSec * 0.5))
+    const capBase = Math.min(70, 12 + Math.floor(elapsedSec * 0.5))
     const targetCap = Math.floor(capBase * this.spawnCapScale[this.qualityLevel])
     const camCenter = this.getCameraCenter()
     const level = runState.state?.level ?? 1
@@ -511,7 +511,7 @@ export default class GameScene extends Phaser.Scene {
     const muzzle = 36
     // Blaster family
     if (hasBlaster) {
-      step('blaster', fireRate, () => {
+      step('blaster', fireRate * 0.75, () => {
         const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
         const baseRad = Phaser.Math.DegToRad(baseAngle)
         const spread = this.stats.spreadDeg || 10
@@ -576,7 +576,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // Missiles
     if (hasMissiles) {
-      step('missiles', fireRate, () => {
+      step('missiles', fireRate * 0.5, () => {
         const baseAngle = this.playerController?.getAimAngle(this.enemies) ?? 0
         const baseRad = Phaser.Math.DegToRad(baseAngle)
         const spread = this.stats.spreadDeg || 10
@@ -634,7 +634,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // Orbs (staggered fire)
     if (hasOrbs) {
-      step('orbs', fireRate, () => {
+      step('orbs', fireRate * 0.5, () => {
         const a = this.playerController?.getAimAngle(this.enemies) ?? 0
         const rad = Phaser.Math.DegToRad(a)
         const muzzleOrb = 72
