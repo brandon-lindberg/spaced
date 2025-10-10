@@ -1,4 +1,7 @@
+import type { ShipId } from './shipConfig'
+
 const BANK_KEY = 'spaced.bankGold'
+const SELECTED_SHIP_KEY = 'spaced.selectedShip'
 
 export function getBankGold(): number {
   try {
@@ -24,6 +27,23 @@ export function addToBankGold(delta: number): number {
   const next = Math.max(0, cur + Math.floor(delta))
   setBankGold(next)
   return next
+}
+
+export function getSelectedShip(): ShipId {
+  try {
+    const raw = localStorage.getItem(SELECTED_SHIP_KEY)
+    return (raw === 'ship-1' || raw === 'ship-2') ? raw : 'ship-1'
+  } catch {
+    return 'ship-1'
+  }
+}
+
+export function setSelectedShip(shipId: ShipId): void {
+  try {
+    localStorage.setItem(SELECTED_SHIP_KEY, shipId)
+  } catch {
+    /* ignore */
+  }
 }
 
 
