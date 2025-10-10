@@ -199,12 +199,12 @@ export default class MenuScene extends Phaser.Scene {
 
     // Ship cards
     const cardWidth = Math.max(150, Math.min(300, (width * 0.9 - 30) / 2))
-    const cardHeight = Math.max(200, Math.min(400, height * 0.6))
+    const cardHeight = Math.max(200, Math.min(400, height * 0.5))
     const gap = Math.max(15, Math.min(30, width * 0.015))
     const startX = (width - (cardWidth * 2 + gap)) / 2
-    const startY = height / 2 - cardHeight / 2
+    const startY = height * 0.25
 
-    const shipCards: { card: MenuCard; shipId: ShipId }[] = []
+    const shipCards: { card: MenuCard; shipId: ShipId; weaponIcon?: Phaser.GameObjects.Image; checkmark?: Phaser.GameObjects.Text }[] = []
 
     SHIP_IDS.forEach((shipId, index) => {
       const shipConfig = SHIPS[shipId]
@@ -219,16 +219,30 @@ export default class MenuScene extends Phaser.Scene {
         width: cardWidth,
         height: cardHeight,
         title: shipConfig.name,
-        description: shipConfig.description,
+        description: '',
         icon: shipConfig.iconTexture,
         color: isSelected ? 0x66ccff : 0x4455ff,
-        onClick: () => this.selectShip(shipId),
+        onClick: () => this.selectShip(shipId, shipCards),
       })
       card.getContainer().setDepth(10)
 
+      // Add weapon icon below ship sprite
+      const weaponIconKey = shipConfig.defaultWeapon === 'blaster' ? 'icon-weapon' : 'icon-weapon-missiles'
+      const weaponIconSize = Math.max(30, Math.min(60, cardWidth * 0.2))
+      const weaponIconY = y + cardHeight * 0.65
+
+      let weaponIcon: Phaser.GameObjects.Image | undefined
+      if (this.textures.exists(weaponIconKey)) {
+        weaponIcon = this.add.image(x + cardWidth / 2, weaponIconY, weaponIconKey)
+          .setDisplaySize(weaponIconSize, weaponIconSize)
+          .setOrigin(0.5)
+          .setDepth(11)
+      }
+
       // Add checkmark if selected
+      let checkmark: Phaser.GameObjects.Text | undefined
       if (isSelected) {
-        this.add.text(x + cardWidth / 2, y + cardHeight - 20, '✓ SELECTED', {
+        checkmark = this.add.text(x + cardWidth / 2, y + cardHeight - 20, '✓ SELECTED', {
           fontFamily: 'monospace',
           fontSize: '16px',
           color: '#66ccff',
@@ -236,25 +250,55 @@ export default class MenuScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(11)
       }
 
-      shipCards.push({ card, shipId })
+      shipCards.push({ card, shipId, weaponIcon, checkmark })
     })
 
-    // Back button
+    // Buttons
     const buttonWidth = Math.max(120, Math.min(240, width * 0.3))
     const buttonHeight = Math.max(40, Math.min(60, height * 0.08))
+    const buttonGap = Math.max(10, Math.min(20, width * 0.01))
+    const buttonsY = height - Math.max(50, height * 0.1)
+
+    // Back button (left)
     const backButton = new MenuButton({
       scene: this,
-      x: width / 2 - buttonWidth / 2,
-      y: height - Math.max(50, height * 0.1),
+      x: width / 2 - buttonWidth - buttonGap / 2,
+      y: buttonsY,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Back',
       onClick: () => {
-        shipCards.forEach((sc) => sc.card.destroy())
+        shipCards.forEach((sc) => {
+          sc.card.destroy()
+          sc.weaponIcon?.destroy()
+          sc.checkmark?.destroy()
+        })
         this.scene.restart()
       },
     })
     backButton.getContainer().setDepth(10)
+    this.buttons.push(backButton)
+
+    // Start Game button (right)
+    const startButton = new MenuButton({
+      scene: this,
+      x: width / 2 + buttonGap / 2,
+      y: buttonsY,
+      width: buttonWidth,
+      height: buttonHeight,
+      text: 'Start Game',
+      primary: true,
+      onClick: () => {
+        shipCards.forEach((sc) => {
+          sc.card.destroy()
+          sc.weaponIcon?.destroy()
+          sc.checkmark?.destroy()
+        })
+        this.startGame()
+      },
+    })
+    startButton.getContainer().setDepth(10)
+    this.buttons.push(startButton)
 
     // Setup navigation
     const navigableItems: NavigableItem[] = [
@@ -262,15 +306,32 @@ export default class MenuScene extends Phaser.Scene {
         index,
         onFocus: () => sc.card.setFocused(true),
         onBlur: () => sc.card.setFocused(false),
-        onActivate: () => this.selectShip(sc.shipId),
+        onActivate: () => this.selectShip(sc.shipId, shipCards),
       })),
       {
         index: shipCards.length,
         onFocus: () => {},
         onBlur: () => {},
         onActivate: () => {
-          shipCards.forEach((sc) => sc.card.destroy())
+          shipCards.forEach((sc) => {
+            sc.card.destroy()
+            sc.weaponIcon?.destroy()
+            sc.checkmark?.destroy()
+          })
           this.scene.restart()
+        },
+      },
+      {
+        index: shipCards.length + 1,
+        onFocus: () => {},
+        onBlur: () => {},
+        onActivate: () => {
+          shipCards.forEach((sc) => {
+            sc.card.destroy()
+            sc.weaponIcon?.destroy()
+            sc.checkmark?.destroy()
+          })
+          this.startGame()
         },
       },
     ]
@@ -280,15 +341,75 @@ export default class MenuScene extends Phaser.Scene {
       items: navigableItems,
       columns: 2,
       onCancel: () => {
-        shipCards.forEach((sc) => sc.card.destroy())
+        shipCards.forEach((sc) => {
+          sc.card.destroy()
+          sc.weaponIcon?.destroy()
+          sc.checkmark?.destroy()
+        })
         this.scene.restart()
       },
     })
   }
 
-  private selectShip(shipId: ShipId) {
+  private selectShip(shipId: ShipId, shipCards: { card: MenuCard; shipId: ShipId; weaponIcon?: Phaser.GameObjects.Image; checkmark?: Phaser.GameObjects.Text }[]) {
     setSelectedShip(shipId)
-    this.scene.restart()
+
+    const { width, height } = this.scale
+    const cardWidth = Math.max(150, Math.min(300, (width * 0.9 - 30) / 2))
+    const cardHeight = Math.max(200, Math.min(400, height * 0.5))
+
+    // Update card visuals
+    shipCards.forEach((sc) => {
+      const isSelected = sc.shipId === shipId
+
+      // Destroy old checkmark if exists
+      sc.checkmark?.destroy()
+      sc.checkmark = undefined
+
+      // Update card color
+      const cardContainer = sc.card.getContainer()
+      const x = cardContainer.x
+      const y = cardContainer.y
+
+      // Recreate card with new color
+      sc.card.destroy()
+      sc.card = new MenuCard({
+        scene: this,
+        x,
+        y,
+        width: cardWidth,
+        height: cardHeight,
+        title: SHIPS[sc.shipId].name,
+        description: '',
+        icon: SHIPS[sc.shipId].iconTexture,
+        color: isSelected ? 0x66ccff : 0x4455ff,
+        onClick: () => this.selectShip(sc.shipId, shipCards),
+      })
+      sc.card.getContainer().setDepth(10)
+
+      // Recreate weapon icon
+      sc.weaponIcon?.destroy()
+      const weaponIconKey = SHIPS[sc.shipId].defaultWeapon === 'blaster' ? 'icon-weapon' : 'icon-weapon-missiles'
+      const weaponIconSize = Math.max(30, Math.min(60, cardWidth * 0.2))
+      const weaponIconY = y + cardHeight * 0.65
+
+      if (this.textures.exists(weaponIconKey)) {
+        sc.weaponIcon = this.add.image(x + cardWidth / 2, weaponIconY, weaponIconKey)
+          .setDisplaySize(weaponIconSize, weaponIconSize)
+          .setOrigin(0.5)
+          .setDepth(11)
+      }
+
+      // Add checkmark if this is the selected ship
+      if (isSelected) {
+        sc.checkmark = this.add.text(x + cardWidth / 2, y + cardHeight - 20, '✓ SELECTED', {
+          fontFamily: 'monospace',
+          fontSize: '16px',
+          color: '#66ccff',
+          fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(11)
+      }
+    })
   }
 
   private showLevelSelectMenu() {
