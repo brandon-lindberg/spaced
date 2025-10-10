@@ -26,9 +26,11 @@ export default class PreloadScene extends Phaser.Scene {
     this.load.audio('bgm', 'audio/Nikkei.mp3')
     // Load cutscene videos
     this.load.video('cutscene_level_one', 'assets/cutscenes/cutscene_level_one.MP4')
-    // Load player ship skin
+    // Load player ship skins
     this.load.image('player-ship-1', 'assets/player/player_ship_1.png')
     this.load.image('player-ship-idle-1', 'assets/player/player_ship_idle_1.png')
+    this.load.image('player-ship-2', 'assets/player/player_ship_2.png')
+    this.load.image('player-ship-idle-2', 'assets/player/player_ship_idle_2.png')
     // Load boss sprites
     this.load.image('boss-1', 'assets/bosses/boss_1.png')
     // Load enemy sprites

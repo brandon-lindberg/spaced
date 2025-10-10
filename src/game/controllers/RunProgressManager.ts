@@ -2,6 +2,8 @@ import { audio } from '../systems/audio'
 import { addAccessory, addWeapon, createInventory, describeAccessories, describeWeapons, evolveWeapon, MAX_ACCESSORY_LEVEL, MAX_WEAPON_LEVEL, type InventoryState } from '../systems/inventory'
 import { applyAccessoryLevel, applyWeaponLevel, computeEvolution, defaultBaseStats } from '../systems/items'
 import { runState } from '../systems/runState'
+import { getSelectedShip } from '../systems/storage'
+import { SHIPS } from '../systems/shipConfig'
 import Phaser from 'phaser'
 
 export interface LevelUpChoice {
@@ -199,7 +201,10 @@ export class RunProgressManager {
 
     const inv = (this.scene.registry.get('inv') as InventoryState) || createInventory()
     if (!inv.weapons || inv.weapons.length === 0) {
-      addWeapon(inv, 'blaster')
+      // Add ship's default weapon
+      const selectedShip = getSelectedShip()
+      const shipConfig = SHIPS[selectedShip]
+      addWeapon(inv, shipConfig.defaultWeapon)
       inv.accessories = []
     }
     this.inventory = inv
@@ -344,10 +349,21 @@ export class RunProgressManager {
       { key: 'hpmax', label: 'Hull plating +15% Max HP', color: '#66ff66' },
     ]
 
-    // Only include weapon upgrades if they're not at max level
+    // Handle blaster - upgrade if player has it, or offer as new weapon if it's not their default
+    const selectedShip = getSelectedShip()
+    const shipConfig = SHIPS[selectedShip]
     const blaster = this.inventory.weapons.find(w => w.key === 'blaster')
-    if (blaster && blaster.level < MAX_WEAPON_LEVEL) {
-      pool.push({ key: 'w-blaster', label: 'Upgrade Blaster', color: '#ffffff' })
+
+    if (shipConfig.defaultWeapon === 'blaster') {
+      // Ship 1: Blaster is default, only upgrade if not maxed
+      if (blaster && blaster.level < MAX_WEAPON_LEVEL) {
+        pool.push({ key: 'w-blaster', label: 'Upgrade Blaster', color: '#ffffff' })
+      }
+    } else {
+      // Ship 2+: Blaster is NOT default, offer as new weapon
+      if (!blaster || blaster.level < MAX_WEAPON_LEVEL) {
+        pool.push({ key: 'w-blaster', label: 'Weapon: Blaster', color: '#ffffff' })
+      }
     }
 
     // Only include accessories if they're not at max level
@@ -383,8 +399,16 @@ export class RunProgressManager {
     }
 
     const missiles = this.inventory.weapons.find(w => w.key === 'missiles')
-    if (!missiles || missiles.level < MAX_WEAPON_LEVEL) {
-      pool.push({ key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' })
+    if (shipConfig.defaultWeapon === 'missiles') {
+      // Ship 2: Missiles is default, only upgrade if not maxed
+      if (missiles && missiles.level < MAX_WEAPON_LEVEL) {
+        pool.push({ key: 'w-missiles', label: 'Upgrade Missiles', color: '#ffcc66' })
+      }
+    } else {
+      // Ship 1+: Missiles is NOT default, offer as new weapon
+      if (!missiles || missiles.level < MAX_WEAPON_LEVEL) {
+        pool.push({ key: 'w-missiles', label: 'Weapon: Missiles', color: '#ffcc66' })
+      }
     }
 
     const orb = this.inventory.weapons.find(w => w.key === 'orb')

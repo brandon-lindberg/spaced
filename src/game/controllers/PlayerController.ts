@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import type { SceneContext } from './SceneServices'
+import { getSelectedShip } from '../systems/storage'
+import { SHIPS } from '../systems/shipConfig'
 
 interface JoypadState {
   active: boolean
@@ -15,9 +17,9 @@ interface JoypadState {
 
 export class PlayerController {
   private ctx: SceneContext
-  private readonly idleTextureKey = 'player-ship-idle-1'
-  private readonly movingTextureKey = 'player-ship-1'
-  private currentTextureKey = this.idleTextureKey
+  private readonly idleTextureKey: string
+  private readonly movingTextureKey: string
+  private currentTextureKey: string
   private player?: Phaser.Physics.Arcade.Sprite
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private wasd?: Record<string, Phaser.Input.Keyboard.Key>
@@ -29,6 +31,12 @@ export class PlayerController {
 
   constructor(ctx: SceneContext) {
     this.ctx = ctx
+    // Load selected ship textures
+    const selectedShip = getSelectedShip()
+    const shipConfig = SHIPS[selectedShip]
+    this.idleTextureKey = shipConfig.idleTexture
+    this.movingTextureKey = shipConfig.movingTexture
+    this.currentTextureKey = this.idleTextureKey
   }
 
   initSprite(): Phaser.Physics.Arcade.Sprite {

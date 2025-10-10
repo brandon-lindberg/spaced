@@ -1,11 +1,12 @@
 import Phaser from 'phaser'
 import { runState } from '../systems/runState'
-import { getBankGold } from '../systems/storage'
+import { getBankGold, getSelectedShip, setSelectedShip } from '../systems/storage'
 import { createInventory, addWeapon } from '../systems/inventory'
 import { MenuButton, MenuCard } from '../ui/MenuComponents'
 import { MenuNavigator, type NavigableItem } from '../ui/MenuNavigator'
 import { IconGenerator } from '../ui/IconGenerator'
 import { ensureGamepadProbe } from '../systems/gamepad'
+import { SHIPS, SHIP_IDS, type ShipId } from '../systems/shipConfig'
 
 export default class MenuScene extends Phaser.Scene {
   private buttons: MenuButton[] = []
@@ -88,7 +89,7 @@ export default class MenuScene extends Phaser.Scene {
     const startButton = new MenuButton({
       scene: this,
       x: width / 2 - buttonWidth / 2,
-      y: buttonY - buttonGap,
+      y: buttonY - buttonGap * 1.5,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Start Game',
@@ -98,11 +99,24 @@ export default class MenuScene extends Phaser.Scene {
     startButton.getContainer().setDepth(10)
     this.buttons.push(startButton)
 
+    // Ship Select button (responsive)
+    const shipSelectButton = new MenuButton({
+      scene: this,
+      x: width / 2 - buttonWidth / 2,
+      y: buttonY - buttonGap * 0.5,
+      width: buttonWidth,
+      height: buttonHeight,
+      text: 'Ship Select',
+      onClick: () => this.showShipSelectMenu(),
+    })
+    shipSelectButton.getContainer().setDepth(10)
+    this.buttons.push(shipSelectButton)
+
     // Level Select button (responsive)
     const levelSelectButton = new MenuButton({
       scene: this,
       x: width / 2 - buttonWidth / 2,
-      y: buttonY,
+      y: buttonY + buttonGap * 0.5,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Level Select',
@@ -115,7 +129,7 @@ export default class MenuScene extends Phaser.Scene {
     const optionsButton = new MenuButton({
       scene: this,
       x: width / 2 - buttonWidth / 2,
-      y: buttonY + buttonGap,
+      y: buttonY + buttonGap * 1.5,
       width: buttonWidth,
       height: buttonHeight,
       text: 'Options',
@@ -131,7 +145,8 @@ export default class MenuScene extends Phaser.Scene {
       onBlur: () => {},
       onActivate: () => {
         if (index === 0) this.startGame()
-        else if (index === 1) this.showLevelSelectMenu()
+        else if (index === 1) this.showShipSelectMenu()
+        else if (index === 2) this.showLevelSelectMenu()
         else this.scene.start('Options')
       },
     }))
@@ -142,7 +157,8 @@ export default class MenuScene extends Phaser.Scene {
       columns: 1,
       onActivate: (index) => {
         if (index === 0) this.startGame()
-        else if (index === 1) this.showLevelSelectMenu()
+        else if (index === 1) this.showShipSelectMenu()
+        else if (index === 2) this.showLevelSelectMenu()
         else this.scene.start('Options')
       },
     })
@@ -158,6 +174,121 @@ export default class MenuScene extends Phaser.Scene {
     this.cleanup()
     this.scene.start('Game')
     this.scene.launch('HUD')
+  }
+
+  private showShipSelectMenu() {
+    // Clear existing UI
+    this.cleanup()
+    this.children.removeAll()
+
+    const { width, height } = this.scale
+
+    // Background
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.9).setOrigin(0, 0).setDepth(5)
+
+    // Title
+    const titleFontSize = Math.max(24, Math.min(48, width * 0.025))
+    this.add.text(width / 2, height * 0.1, 'Select Ship', {
+      fontFamily: 'monospace',
+      fontSize: `${titleFontSize}px`,
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10)
+
+    const currentShip = getSelectedShip()
+
+    // Ship cards
+    const cardWidth = Math.max(150, Math.min(300, (width * 0.9 - 30) / 2))
+    const cardHeight = Math.max(200, Math.min(400, height * 0.6))
+    const gap = Math.max(15, Math.min(30, width * 0.015))
+    const startX = (width - (cardWidth * 2 + gap)) / 2
+    const startY = height / 2 - cardHeight / 2
+
+    const shipCards: { card: MenuCard; shipId: ShipId }[] = []
+
+    SHIP_IDS.forEach((shipId, index) => {
+      const shipConfig = SHIPS[shipId]
+      const x = startX + index * (cardWidth + gap)
+      const y = startY
+      const isSelected = currentShip === shipId
+
+      const card = new MenuCard({
+        scene: this,
+        x,
+        y,
+        width: cardWidth,
+        height: cardHeight,
+        title: shipConfig.name,
+        description: shipConfig.description,
+        icon: shipConfig.iconTexture,
+        color: isSelected ? 0x66ccff : 0x4455ff,
+        onClick: () => this.selectShip(shipId),
+      })
+      card.getContainer().setDepth(10)
+
+      // Add checkmark if selected
+      if (isSelected) {
+        this.add.text(x + cardWidth / 2, y + cardHeight - 20, '✓ SELECTED', {
+          fontFamily: 'monospace',
+          fontSize: '16px',
+          color: '#66ccff',
+          fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(11)
+      }
+
+      shipCards.push({ card, shipId })
+    })
+
+    // Back button
+    const buttonWidth = Math.max(120, Math.min(240, width * 0.3))
+    const buttonHeight = Math.max(40, Math.min(60, height * 0.08))
+    const backButton = new MenuButton({
+      scene: this,
+      x: width / 2 - buttonWidth / 2,
+      y: height - Math.max(50, height * 0.1),
+      width: buttonWidth,
+      height: buttonHeight,
+      text: 'Back',
+      onClick: () => {
+        shipCards.forEach((sc) => sc.card.destroy())
+        this.scene.restart()
+      },
+    })
+    backButton.getContainer().setDepth(10)
+
+    // Setup navigation
+    const navigableItems: NavigableItem[] = [
+      ...shipCards.map((sc, index) => ({
+        index,
+        onFocus: () => sc.card.setFocused(true),
+        onBlur: () => sc.card.setFocused(false),
+        onActivate: () => this.selectShip(sc.shipId),
+      })),
+      {
+        index: shipCards.length,
+        onFocus: () => {},
+        onBlur: () => {},
+        onActivate: () => {
+          shipCards.forEach((sc) => sc.card.destroy())
+          this.scene.restart()
+        },
+      },
+    ]
+
+    this.navigator = new MenuNavigator({
+      scene: this,
+      items: navigableItems,
+      columns: 2,
+      onCancel: () => {
+        shipCards.forEach((sc) => sc.card.destroy())
+        this.scene.restart()
+      },
+    })
+  }
+
+  private selectShip(shipId: ShipId) {
+    setSelectedShip(shipId)
+    this.scene.restart()
   }
 
   private showLevelSelectMenu() {
@@ -272,8 +403,10 @@ export default class MenuScene extends Phaser.Scene {
     this.registry.set('hpMaxPersistent', 10)
 
     // Create checkpoint with fresh state for the selected level
+    const selectedShip = getSelectedShip()
+    const shipConfig = SHIPS[selectedShip]
     const freshInv = createInventory()
-    addWeapon(freshInv, 'blaster') // Add starting weapon
+    addWeapon(freshInv, shipConfig.defaultWeapon) // Add ship's starting weapon
     const snapshot = {
       playerLevel: 1,
       xp: 0,
