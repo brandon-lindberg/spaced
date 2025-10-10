@@ -79,7 +79,7 @@ export default class PreloadScene extends Phaser.Scene {
     makeRect('icon-acc',360,360,0x226644)
     // Game sprites
     makeRect('blaster-tex',108,108,0xffffff)
-    makeRect('laser-shot-tex',72,72,0xff66ff)
+    makeRect('laser-shot-tex',1,1,0xff66ff)
     makeRect('missile-tex',108,180,0xffaa33)
     makeCircle('orb-tex',144,0x66ccff)
     makeRect('beam-tex',288,72,0xff66ff)

@@ -700,7 +700,7 @@ export default class GameScene extends Phaser.Scene {
         const ox = this.player.x + Math.cos(rad) * 84
         const oy = this.player.y + Math.sin(rad) * 84
         const len = hasBeamLaser ? 840 : 630  // Beam length scaled for 1920x1080 (6x from 140/105)
-        const thickness = 2 * Math.pow(1.5, lvl - 1)  // Start at 2px, multiply by 1.5x per level
+        const thickness = 2 * Math.pow(1.5, lvl - 1) * 1.1  // Start at 2px, multiply by 1.5x per level, then 10% increase
         this.spawnBeam(ox, oy, a, len, thickness)
         this.applyBeamDamage(ox, oy, a, len, Math.max(1, this.stats.bulletDamage * (hasBeamLaser ? 1.2 : 1.0)), thickness)
         const shot = this.bullets.get(ox, oy, 'laser-shot-tex') as Phaser.Physics.Arcade.Sprite
@@ -713,6 +713,14 @@ export default class GameScene extends Phaser.Scene {
           shot.body?.setSize(1, 1, true)
           shot.setCircle(0.5, 0, 0)
           shot.setOrigin(0.5, 0.5)
+          console.log('Laser shot particle:', {
+            textureKey: shot.texture.key,
+            textureSize: { width: shot.texture.source[0].width, height: shot.texture.source[0].height },
+            displaySize: { width: shot.displayWidth, height: shot.displayHeight },
+            scale: { x: shot.scaleX, y: shot.scaleY },
+            bodySize: shot.body ? { width: shot.body.width, height: shot.body.height } : 'no body',
+            position: { x: shot.x, y: shot.y }
+          })
           const vs = 220
           const vrad = Phaser.Math.DegToRad(a)
           shot.setVelocity(Math.cos(vrad) * vs * 6, Math.sin(vrad) * vs * 6)
