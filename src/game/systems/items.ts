@@ -147,7 +147,7 @@ export function applyWeaponLevel(stats: EffectiveStats, weaponKey: WeaponKey, le
 export function applyAccessoryLevel(stats: EffectiveStats, accKey: AccessoryKey, level: number) {
   switch (accKey) {
     case 'thrusters':
-      stats.speedMultiplier += 0.1 * level
+      stats.speedMultiplier += 0.125 * level
       break
     case 'magnet-core':
       stats.magnetRadius += 144 * level  // Scaled from 24 for 1920x1080 resolution (6x)
